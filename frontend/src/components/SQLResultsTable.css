@@ -1,0 +1,239 @@
+.sql-results-container {
+  margin-top: 1rem;
+  border-radius: 16px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.sql-results-container:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.sql-results-header {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.sql-results-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.sql-results-count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sql-results-note {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+.sql-results-table-wrapper {
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.sql-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.sql-results-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8f9fa;
+}
+
+.sql-results-table th {
+  padding: 1.25rem 1.5rem;
+  text-align: left;
+  font-weight: 700;
+  color: #1a202c;
+  border-bottom: 3px solid #667eea;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  white-space: nowrap;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 1.2px;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.sql-results-table th:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: rgba(102, 126, 234, 0.2);
+}
+
+.sql-column-number {
+  text-align: right;
+}
+
+.sql-column-boolean {
+  text-align: center;
+}
+
+.sql-results-table tbody tr {
+  border-bottom: 1px solid #e9ecef;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.sql-results-table tbody tr:hover {
+  background-color: #f0f4ff;
+  transform: translateX(2px);
+  box-shadow: -2px 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.sql-results-table tbody tr.even {
+  background-color: #ffffff;
+}
+
+.sql-results-table tbody tr.odd {
+  background-color: #fafbfc;
+}
+
+.sql-results-table tbody tr.odd:hover {
+  background-color: #e8f0fe;
+}
+
+.sql-results-table td {
+  padding: 1.125rem 1.5rem;
+  color: #2d3748;
+  word-break: break-word;
+  max-width: 300px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  transition: background-color 0.15s ease;
+  vertical-align: middle;
+}
+
+.sql-results-table td:last-child {
+  border-right: none;
+}
+
+.sql-cell-number {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+  color: #0066cc;
+}
+
+.sql-cell-boolean {
+  text-align: center;
+  font-size: 1.2rem;
+}
+
+.sql-cell-text {
+  text-align: left;
+}
+
+.null-value {
+  color: #999;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.boolean-value {
+  font-size: 1.1rem;
+  color: #667eea;
+}
+
+.date-value {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  color: #0066cc;
+}
+
+.truncated-value {
+  cursor: help;
+}
+
+.sql-results-footer {
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.sql-results-more {
+  font-style: italic;
+}
+
+.sql-results-empty {
+  padding: 2rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+/* Scrollbar styling */
+.sql-results-table-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sql-results-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.sql-results-table-wrapper::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
+}
+
+.sql-results-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .sql-results-table {
+    font-size: 0.8rem;
+  }
+
+  .sql-results-table th,
+  .sql-results-table td {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .sql-results-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+}
+

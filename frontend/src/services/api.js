@@ -1,0 +1,55 @@
+import axios from 'axios'
+
+// Use relative URL to work through nginx proxy in Docker, or absolute URL for local dev
+// In Docker, nginx proxies /api to backend:8000
+const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '')
+const API_KEY = import.meta.env.VITE_API_KEY || ''
+
+// Create axios instance with conditional headers
+const headers = {
+  'Content-Type': 'application/json'
+}
+
+// Only add API key header if it's provided
+if (API_KEY) {
+  headers['X-API-Key'] = API_KEY
+}
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: headers
+})
+
+export const checkHealth = async () => {
+  const response = await apiClient.get('/api/v1/health')
+  return response.data
+}
+
+export const queryAPI = async (query, agentType = 'auto') => {
+  const response = await apiClient.post('/api/v1/query', {
+    query,
+    agent_type: agentType
+  })
+  return response.data
+}
+
+export const ragQuery = async (query) => {
+  const response = await apiClient.post('/api/v1/rag', { query })
+  return response.data
+}
+
+export const sqlQuery = async (query) => {
+  const response = await apiClient.post('/api/v1/sql', { query })
+  return response.data
+}
+
+export const analyzeQuery = async (query, data = null) => {
+  const response = await apiClient.post('/api/v1/analyze', { query, data })
+  return response.data
+}
+
+export const getSchema = async () => {
+  const response = await apiClient.get('/api/v1/schema')
+  return response.data
+}
+
