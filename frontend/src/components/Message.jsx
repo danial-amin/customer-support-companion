@@ -108,6 +108,44 @@ function Message({ message }) {
                 </ul>
               </div>
             )}
+            {message.metadata.rag_sources && message.metadata.rag_sources.length > 0 && (
+              <div className="rag-sources">
+                <strong>📚 Sources:</strong>
+                <ul className="sources-list">
+                  {message.metadata.rag_sources.map((source, idx) => (
+                    <li key={idx} className="source-item">
+                      <div className="source-header">
+                        {source.url ? (
+                          <a 
+                            href={source.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="source-link"
+                          >
+                            📄 {source.file_name || source.source}
+                          </a>
+                        ) : (
+                          <span className="source-name">📄 {source.file_name || source.source}</span>
+                        )}
+                        {source.file_type && (
+                          <span className="source-type">{source.file_type}</span>
+                        )}
+                      </div>
+                      {source.text_preview && (
+                        <div className="source-preview">
+                          {source.text_preview}
+                        </div>
+                      )}
+                      {source.score && (
+                        <div className="source-score">
+                          Relevance: {(source.score * 100).toFixed(1)}%
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

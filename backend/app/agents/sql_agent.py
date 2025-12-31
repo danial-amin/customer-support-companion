@@ -6,8 +6,10 @@ from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 from app.config import settings
 from app.services.database_service import database_service
+from app.utils.serialization import serialize_for_json
 import logging
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,7 @@ class SQLAgentState(TypedDict):
     schema: Dict[str, Any]
     sql_query: str
     result: Optional[Dict[str, Any]]
+    answer: Optional[str]
     error: Optional[str]
 
 
@@ -39,11 +42,13 @@ class SQLAgent:
         workflow.add_node("get_schema", self._get_schema)
         workflow.add_node("translate", self._translate_to_sql)
         workflow.add_node("execute", self._execute_sql)
+        workflow.add_node("format_answer", self._format_answer)
         
         workflow.set_entry_point("get_schema")
         workflow.add_edge("get_schema", "translate")
         workflow.add_edge("translate", "execute")
-        workflow.add_edge("execute", END)
+        workflow.add_edge("execute", "format_answer")
+        workflow.add_edge("format_answer", END)
         
         return workflow.compile()
     
@@ -74,14 +79,21 @@ class SQLAgent:
             Translate natural language questions into SQL queries.
             Only generate SELECT queries. Never generate INSERT, UPDATE, DELETE, DROP, or ALTER statements.
             Use the provided database schema to construct accurate queries.
-            Return ONLY the SQL query, no explanations or markdown formatting."""
+            
+            IMPORTANT: 
+            - Always return a valid SQL SELECT query, even if the user asks for charts, graphs, or visualizations
+            - For visualization requests, generate a SQL query that retrieves the data needed for the visualization
+            - Return ONLY the SQL query, no explanations, no markdown formatting, no natural language responses
+            - If you cannot create a query, return a simple query like "SELECT 1" and set an error instead"""
             
             user_prompt = f"""Database Schema:
 {schema_json}
 
 User Question: {state['query']}
 
-Generate a SQL SELECT query to answer this question. Return only the SQL query."""
+Generate a SQL SELECT query to retrieve the data needed to answer this question. 
+Even if the question asks for a chart or graph, generate a SQL query that gets the underlying data.
+Return ONLY the SQL query, nothing else."""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -99,6 +111,23 @@ Generate a SQL SELECT query to answer this question. Return only the SQL query."
             if sql_query.endswith("```"):
                 sql_query = sql_query[:-3]
             sql_query = sql_query.strip()
+            
+            # Validate that the response is actually SQL, not natural language
+            sql_upper = sql_query.upper()
+            if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
+                # If the LLM returned natural language instead of SQL, try to extract SQL or set error
+                logger.warning(f"SQL agent returned non-SQL response: {sql_query[:100]}")
+                # Try to find SQL in the response
+                sql_match = re.search(r'(SELECT\s+.*?)(?:\n|$)', sql_query, re.IGNORECASE | re.DOTALL)
+                if sql_match:
+                    sql_query = sql_match.group(1).strip()
+                    logger.info(f"Extracted SQL from response: {sql_query[:100]}")
+                else:
+                    # If no SQL found, set an error and use a placeholder query
+                    state["error"] = "Could not generate a valid SQL query. The request may require data analysis or visualization tools."
+                    state["sql_query"] = "SELECT 1 as error"
+                    logger.error(f"Failed to generate SQL query from: {sql_query[:100]}")
+                    return state
             
             state["sql_query"] = sql_query
             logger.info(f"Generated SQL: {sql_query}")
@@ -131,6 +160,80 @@ Generate a SQL SELECT query to answer this question. Return only the SQL query."
         
         return state
     
+    def _format_answer(self, state: SQLAgentState) -> SQLAgentState:
+        """Generate a natural language answer from SQL results."""
+        try:
+            if state.get("error"):
+                state["answer"] = f"Error: {state['error']}"
+                return state
+            
+            if not state.get("result"):
+                state["answer"] = "No results found."
+                return state
+            
+            result = state["result"]
+            rows = result.get("rows", [])
+            columns = result.get("columns", [])
+            row_count = result.get("row_count", 0)
+            original_query = state.get("query", "")
+            sql_query = state.get("sql_query", "")
+            
+            if row_count == 0:
+                state["answer"] = "The query executed successfully, but no matching records were found."
+                return state
+            
+            # Format the results for the LLM
+            # Serialize rows to ensure all types are JSON-compatible
+            serialized_rows = serialize_for_json(rows[:50])  # Limit to first 50 rows for LLM context
+            results_text = json.dumps({
+                "columns": columns,
+                "rows": serialized_rows,
+                "total_rows": row_count
+            }, indent=2)
+            
+            system_prompt = """You are a helpful data analyst. Your job is to interpret SQL query results and provide a clear, natural language answer to the user's question.
+
+Your response should:
+1. Directly answer the user's question using the actual data from the query results
+2. Include specific numbers, values, and facts from the results
+3. Be concise and clear
+4. If the query returned multiple rows, summarize the key findings
+5. If the query is a COUNT or aggregation, state the exact number/value
+6. Do not just say "the query returned X rows" - actually use the data to answer the question
+
+Write in a natural, conversational tone."""
+            
+            user_prompt = f"""Original User Question: {original_query}
+
+SQL Query Executed: {sql_query}
+
+Query Results:
+{results_text}
+
+Based on the query results above, provide a clear, direct answer to the user's question: "{original_query}"
+
+Use the actual data values from the results to answer the question. Be specific and include numbers where relevant."""
+            
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            
+            response = self.llm.invoke(messages)
+            state["answer"] = response.content.strip()
+            logger.info(f"Generated answer from SQL results")
+            
+        except Exception as e:
+            logger.error(f"Error formatting answer: {e}")
+            # Fallback to basic answer if LLM fails
+            if state.get("result"):
+                row_count = state["result"].get("row_count", 0)
+                state["answer"] = f"Query executed successfully and returned {row_count} row(s)."
+            else:
+                state["answer"] = "Query executed, but I encountered an error while formatting the answer."
+        
+        return state
+    
     async def query(self, query: str) -> Dict[str, Any]:
         """Process a natural language query and return SQL results."""
         initial_state: SQLAgentState = {
@@ -138,6 +241,7 @@ Generate a SQL SELECT query to answer this question. Return only the SQL query."
             "schema": {},
             "sql_query": "",
             "result": None,
+            "answer": None,
             "error": None
         }
         
@@ -146,6 +250,7 @@ Generate a SQL SELECT query to answer this question. Return only the SQL query."
             return {
                 "sql_query": result.get("sql_query", ""),
                 "result": result.get("result"),
+                "answer": result.get("answer", ""),
                 "error": result.get("error")
             }
         except Exception as e:
@@ -153,6 +258,7 @@ Generate a SQL SELECT query to answer this question. Return only the SQL query."
             return {
                 "sql_query": "",
                 "result": None,
+                "answer": "",
                 "error": str(e)
             }
 

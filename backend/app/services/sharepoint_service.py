@@ -77,7 +77,8 @@ class SharePointService:
         ctx: ClientContext,
         library_name: str = "Documents",
         folder_path: Optional[str] = None,
-        file_extensions: Optional[List[str]] = None
+        file_extensions: Optional[List[str]] = None,
+        site_url: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve documents from a SharePoint document library.
@@ -142,15 +143,32 @@ class SharePointService:
                             logger.error(f"Unable to convert file content to bytes for {file_name}")
                             continue
                     
+                    # Get file URL if available
+                    file_url = None
+                    try:
+                        if hasattr(file, 'properties') and file.properties:
+                            # Try to get server relative URL or web URL
+                            server_relative_url = file.properties.get('ServerRelativeUrl') or file.properties.get('ServerUrl')
+                            if server_relative_url:
+                                # Construct full URL from site URL
+                                if site_url and not server_relative_url.startswith('http'):
+                                    file_url = f"{site_url.rstrip('/')}{server_relative_url}"
+                                else:
+                                    file_url = server_relative_url
+                    except Exception as e:
+                        logger.debug(f"Could not extract file URL: {e}")
+                    
                     documents.append({
                         "name": file_name,
                         "content": file_content,
                         "extension": file_extension,
                         "metadata": {
                             "source": f"sharepoint://{library_name}/{file_name}",
+                            "file_name": file_name,
                             "file_type": file_extension,
                             "library": library_name,
-                            "folder": folder_path or "root"
+                            "folder": folder_path or "root",
+                            "url": file_url  # Add URL if available
                         }
                     })
                     
@@ -182,7 +200,7 @@ class SharePointService:
             List of document dictionaries
         """
         ctx = self.connect(site_url, tenant_id, client_id, client_secret)
-        return self.get_documents_from_library(ctx, library_name, folder_path)
+        return self.get_documents_from_library(ctx, library_name, folder_path, site_url=site_url)
 
 
 # Global instance

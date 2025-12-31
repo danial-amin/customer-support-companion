@@ -57,16 +57,20 @@ export const uploadDocument = async (file) => {
   const formData = new FormData()
   formData.append('file', file)
   
-  // Create a new axios instance for file uploads (without Content-Type header)
-  // Axios will automatically set the correct Content-Type with boundary
+  // Create headers for file upload - DO NOT set Content-Type, let browser set it with boundary
   const uploadHeaders = {}
   if (API_KEY) {
     uploadHeaders['X-API-Key'] = API_KEY
   }
   
-  const response = await apiClient.post('/api/v1/rag/upload', formData, {
+  // Use a fresh axios instance without default JSON headers for file uploads
+  const uploadClient = axios.create({
+    baseURL: API_BASE_URL,
     headers: uploadHeaders
+    // Note: We intentionally don't set Content-Type - browser will set it with boundary
   })
+  
+  const response = await uploadClient.post('/api/v1/rag/upload', formData)
   return response.data
 }
 

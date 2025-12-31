@@ -26,21 +26,55 @@ class PineconeService:
             
             self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
             
-            # Check if index exists, create if not
-            if settings.PINECONE_INDEX_NAME not in self.pc.list_indexes().names():
-                logger.info(f"Creating Pinecone index: {settings.PINECONE_INDEX_NAME}")
+            # Expected dimension for OpenAI embeddings (text-embedding-ada-002)
+            expected_dimension = 1536
+            
+            # Check if index exists
+            index_names = self.pc.list_indexes().names()
+            if settings.PINECONE_INDEX_NAME not in index_names:
+                logger.info(f"Creating Pinecone index: {settings.PINECONE_INDEX_NAME} with dimension {expected_dimension}")
                 self.pc.create_index(
                     name=settings.PINECONE_INDEX_NAME,
-                    dimension=1536,  # OpenAI embedding dimension
+                    dimension=expected_dimension,
                     metric="cosine",
                     spec=ServerlessSpec(
                         cloud="aws",
                         region="us-east-1"
                     )
                 )
+            else:
+                # Check existing index dimension
+                try:
+                    index_info = self.pc.describe_index(settings.PINECONE_INDEX_NAME)
+                    actual_dimension = index_info.dimension
+                    
+                    if actual_dimension != expected_dimension:
+                        logger.error(
+                            f"Pinecone index dimension mismatch! "
+                            f"Index has {actual_dimension} dimensions, but embeddings are {expected_dimension} dimensions. "
+                            f"Please delete the index '{settings.PINECONE_INDEX_NAME}' and recreate it, or use an embedding model that produces {actual_dimension} dimensions."
+                        )
+                        # Don't raise error, just log it - let the user fix it
+                        # The index will be None, so operations will fail gracefully
+                        logger.warning("Pinecone index will not be used due to dimension mismatch")
+                        self.pc = None
+                        self.index = None
+                        return
+                    else:
+                        logger.info(f"Pinecone index '{settings.PINECONE_INDEX_NAME}' has correct dimension: {actual_dimension}")
+                except Exception as e:
+                    logger.error(f"Error checking index dimension: {e}")
+                    self.pc = None
+                    self.index = None
+                    return
             
-            self.index = self.pc.Index(settings.PINECONE_INDEX_NAME)
-            logger.info("Pinecone initialized successfully")
+            # Initialize the index connection
+            try:
+                self.index = self.pc.Index(settings.PINECONE_INDEX_NAME)
+                logger.info("Pinecone initialized successfully")
+            except Exception as e:
+                logger.error(f"Error connecting to Pinecone index: {e}")
+                self.index = None
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone: {e}")
             self.pc = None
@@ -49,6 +83,20 @@ class PineconeService:
     def is_available(self) -> bool:
         """Check if Pinecone is available."""
         return self.index is not None
+    
+    def _scored_vector_to_dict(self, scored_vector) -> dict:
+        """Convert Pinecone ScoredVector to dictionary."""
+        if isinstance(scored_vector, dict):
+            return scored_vector
+        
+        # Handle ScoredVector object
+        result = {
+            "id": getattr(scored_vector, "id", None),
+            "score": getattr(scored_vector, "score", 0.0),
+            "metadata": getattr(scored_vector, "metadata", {}) or {},
+            "values": getattr(scored_vector, "values", None)
+        }
+        return result
     
     def upsert_vectors(self, vectors: List[dict], namespace: Optional[str] = None):
         """Upsert vectors to Pinecone."""
@@ -81,7 +129,9 @@ class PineconeService:
                 filter=filter,
                 include_metadata=True
             )
-            return results.get("matches", [])
+            matches = results.get("matches", [])
+            # Convert ScoredVector objects to dictionaries
+            return [self._scored_vector_to_dict(match) for match in matches]
         except Exception as e:
             logger.error(f"Error querying Pinecone: {e}")
             raise
@@ -122,7 +172,9 @@ class PineconeService:
                 include_metadata=True
             )
             
-            matches = semantic_results.get("matches", [])
+            raw_matches = semantic_results.get("matches", [])
+            # Convert ScoredVector objects to dictionaries
+            matches = [self._scored_vector_to_dict(match) for match in raw_matches]
             
             # If no keywords, return semantic results
             if not keywords:

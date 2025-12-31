@@ -16,6 +16,7 @@ class RAGState(TypedDict):
     """State for RAG agent."""
     query: str
     context: List[str]
+    sources: List[Dict[str, Any]]  # Store full source information
     answer: str
     error: Optional[str]
 
@@ -29,7 +30,12 @@ class RAGAgent:
             temperature=settings.TEMPERATURE,
             api_key=settings.OPENAI_API_KEY
         )
-        self.embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
+        # Use text-embedding-ada-002 which produces 1536-dimensional embeddings
+        # This must match the Pinecone index dimension
+        self.embeddings = OpenAIEmbeddings(
+            api_key=settings.OPENAI_API_KEY,
+            model="text-embedding-ada-002"  # Explicitly set to ensure 1536 dimensions
+        )
         self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
@@ -70,16 +76,51 @@ class RAGAgent:
             
             # Extract context from results
             context = []
-            for match in results:
-                if match.get("metadata"):
-                    text = match["metadata"].get("text", "")
-                    source = match["metadata"].get("source", "unknown")
-                    if text:
-                        # Include source info in context
-                        context.append(f"[Source: {source}]\n{text}")
+            sources = []
+            seen_sources = set()  # Track unique sources
+            
+            if results:
+                for match in results:
+                    if match.get("metadata"):
+                        metadata = match["metadata"]
+                        text = metadata.get("text", "")
+                        source = metadata.get("source", "unknown")
+                        file_name = metadata.get("file_name", source)
+                        file_type = metadata.get("file_type", "")
+                        url = metadata.get("url", "")  # For SharePoint documents
+                        chunk_index = metadata.get("chunk_index", 0)
+                        total_chunks = metadata.get("total_chunks", 1)
+                        score = match.get("score", 0.0)
+                        
+                        if text:
+                            # Include source info in context for LLM
+                            context.append(f"[Source: {source}]\n{text}")
+                            
+                            # Store full source information
+                            source_info = {
+                                "source": source,
+                                "file_name": file_name,
+                                "file_type": file_type,
+                                "url": url,
+                                "chunk_index": chunk_index,
+                                "total_chunks": total_chunks,
+                                "score": score,
+                                "text_preview": text[:200] + "..." if len(text) > 200 else text
+                            }
+                            
+                            # Add unique sources (by source name)
+                            source_key = f"{source}_{file_name}"
+                            if source_key not in seen_sources:
+                                sources.append(source_info)
+                                seen_sources.add(source_key)
             
             state["context"] = context
-            logger.info(f"Retrieved {len(context)} context chunks using hybrid search")
+            state["sources"] = sources
+            logger.info(f"Retrieved {len(context)} context chunks from {len(sources)} unique sources")
+            
+            # If no context found, log a warning
+            if not context:
+                logger.warning(f"No context found for query: {state['query']}. The index may be empty or the query doesn't match any documents.")
         except Exception as e:
             logger.error(f"Error retrieving context: {e}")
             state["error"] = str(e)
@@ -90,7 +131,17 @@ class RAGAgent:
     def _generate_answer(self, state: RAGState) -> RAGState:
         """Generate answer using LLM with retrieved context."""
         try:
-            context_text = "\n\n".join(state.get("context", []))
+            context_list = state.get("context", [])
+            context_text = "\n\n".join(context_list) if context_list else ""
+            
+            # If no context was found, provide helpful message
+            if not context_text:
+                state["answer"] = (
+                    "I don't have any documents in my knowledge base to answer that question. "
+                    "Please upload relevant documents using the Documents page, or try asking a different question. "
+                    "If you believe this information should be available, the documents may need to be re-uploaded after fixing the Pinecone index dimension."
+                )
+                return state
             
             system_prompt = """You are a helpful customer support assistant. 
             Use the provided context to answer the user's question accurately.
@@ -124,6 +175,7 @@ Please provide a helpful answer based on the context above."""
         initial_state: RAGState = {
             "query": query,
             "context": [],
+            "sources": [],
             "answer": "",
             "error": None
         }
@@ -133,6 +185,7 @@ Please provide a helpful answer based on the context above."""
             return {
                 "answer": result.get("answer", ""),
                 "context_sources": len(result.get("context", [])),
+                "sources": result.get("sources", []),  # Return full source information
                 "error": result.get("error")
             }
         except Exception as e:

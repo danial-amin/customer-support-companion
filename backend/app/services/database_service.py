@@ -4,6 +4,7 @@ import sqlalchemy
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.pool import NullPool
 from app.config import settings
+from app.utils.serialization import serialize_for_json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -107,9 +108,17 @@ class DatabaseService:
                 if result.returns_rows:
                     rows = result.fetchall()
                     columns = result.keys()
+                    # Convert rows to dicts and serialize non-JSON types (date, Decimal, UUID, etc.)
+                    serialized_rows = []
+                    for row in rows:
+                        row_dict = dict(row._mapping)
+                        # Serialize all non-JSON-serializable types
+                        serialized_row = serialize_for_json(row_dict)
+                        serialized_rows.append(serialized_row)
+                    
                     return {
                         "columns": list(columns),
-                        "rows": [dict(row._mapping) for row in rows],
+                        "rows": serialized_rows,
                         "row_count": len(rows)
                     }
                 else:

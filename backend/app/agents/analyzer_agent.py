@@ -16,6 +16,7 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 import base64
 from io import BytesIO
+from app.utils.serialization import serialize_for_json
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +82,22 @@ class AnalyzerAgent:
             # The SQL agent should understand what data to fetch
             sql_result = await sql_agent.query(query)
             
+            # Check if SQL agent returned an error
             if sql_result.get("error"):
-                # If SQL fails, try to provide a helpful error message
                 error_msg = sql_result.get("error", "Unknown error")
-                state["error"] = f"Failed to fetch data for analysis: {error_msg}. Please ensure your query references valid database tables and columns."
+                # Check if the error indicates the SQL agent couldn't generate a query
+                if "Could not generate a valid SQL query" in error_msg or "not capable" in error_msg.lower():
+                    state["error"] = f"Cannot analyze this request: {error_msg}. Please rephrase your query to ask for data that can be retrieved from the database."
+                else:
+                    state["error"] = f"Failed to fetch data for analysis: {error_msg}. Please ensure your query references valid database tables and columns."
                 logger.warning(f"SQL agent failed: {error_msg}")
+                return state
+            
+            # Validate that we got a proper SQL query
+            sql_query = sql_result.get("sql_query", "")
+            if not sql_query or not sql_query.upper().startswith("SELECT"):
+                state["error"] = "The SQL agent did not generate a valid SQL query. Please rephrase your request to ask for data from the database."
+                logger.warning(f"Invalid SQL query from SQL agent: {sql_query[:100]}")
                 return state
             
             if sql_result.get("result"):
@@ -95,7 +107,7 @@ class AnalyzerAgent:
                     state["error"] = "No data found to analyze. The query returned empty results."
                     return state
                 state["data"] = data
-                state["sql_query"] = sql_result.get("sql_query", "")
+                state["sql_query"] = sql_query
                 logger.info(f"Retrieved {len(rows)} rows for analysis")
             else:
                 state["error"] = "No data retrieved from SQL query. Please check your query and try again."
@@ -121,7 +133,14 @@ class AnalyzerAgent:
                 return state
             
             # Convert to DataFrame format for code generation
-            data_sample = json.dumps(rows[:10], indent=2)  # Sample for context
+            # Serialize non-JSON types (date, datetime, Decimal, UUID, etc.) to strings
+            serialized_rows = serialize_for_json(rows[:10])
+            data_sample = json.dumps(serialized_rows, indent=2)  # Sample for context
+            
+            # Check if visualization is requested
+            query_lower = state['query'].lower()
+            visualization_keywords = ['chart', 'graph', 'plot', 'visualize', 'visualization', 'bar', 'line', 'histogram', 'pie', 'scatter']
+            needs_visualization = any(keyword in query_lower for keyword in visualization_keywords)
             
             system_prompt = """You are an expert data analyst. Your job is to understand the user's analysis request and generate Python code to perform that analysis.
 
@@ -142,15 +161,18 @@ CODE REQUIREMENTS:
 2. Understand the data structure - check columns and data types
 3. Perform the requested analysis
 4. ALWAYS use print() statements to show ALL results, statistics, and findings
-5. If visualization is requested, create a matplotlib plot
+5. **IF THE USER ASKS FOR A CHART, GRAPH, OR PLOT, YOU MUST CREATE ONE**
 
 CRITICAL RULES FOR VISUALIZATIONS:
+- When visualization is requested, you MUST create a matplotlib plot
 - DO NOT use plt.show() - it will cause errors
 - DO NOT use plt.savefig() - the plot will be captured automatically
 - DO NOT use plt.close() - the plot needs to remain open to be captured
-- Create the plot: plt.figure(figsize=(10, 6)), then plt.plot(), plt.bar(), plt.hist(), etc.
+- ALWAYS create the plot: plt.figure(figsize=(10, 6))
+- Then create the plot: plt.bar(), plt.plot(), plt.hist(), plt.scatter(), etc.
 - ALWAYS add labels: plt.xlabel(), plt.ylabel(), plt.title()
 - The plot will be automatically captured after your code runs
+- If user asks for "graph" or "chart", create an appropriate visualization based on the data
 
 IMPORTANT OUTPUT RULES:
 - ALWAYS print results, statistics, and findings using print() statements
@@ -174,6 +196,23 @@ DATA AVAILABLE:
 
 Return ONLY the Python code, no explanations or markdown. The code will be executed directly."""
             
+            # Build visualization instruction based on whether it's needed
+            viz_instruction = ""
+            if needs_visualization:
+                viz_instruction = f"""
+
+⚠️ VISUALIZATION REQUIRED ⚠️
+The user's request contains visualization keywords. YOU MUST CREATE A PLOT/CHART.
+- Create plt.figure(figsize=(10, 6))
+- Choose appropriate plot type based on data:
+  * plt.bar() for categorical comparisons
+  * plt.plot() for trends over time
+  * plt.hist() for distributions
+  * plt.scatter() for relationships
+- Add labels: plt.xlabel(), plt.ylabel(), plt.title()
+- DO NOT use plt.show(), plt.close(), or plt.savefig()
+"""
+            
             user_prompt = f"""USER'S ANALYSIS REQUEST: "{state['query']}"
 
 DATA INFORMATION:
@@ -184,8 +223,15 @@ DATA INFORMATION:
 
 TASK: Generate Python code to perform the analysis requested by the user.
 
+CRITICAL FIRST STEP - YOU MUST DO THIS:
+1. ALWAYS start your code with: df = pd.DataFrame(data_rows)
+   - This creates the DataFrame from the data_rows variable
+   - DO NOT skip this step, even if you think it's obvious
+   - DO NOT assume df already exists
+   - This MUST be the first line of your code
+{viz_instruction}
 STEP-BY-STEP INSTRUCTIONS:
-1. Create DataFrame: df = pd.DataFrame(data_rows)
+1. FIRST LINE MUST BE: df = pd.DataFrame(data_rows)
 
 2. Understand what the user wants:
    - Read the user's request carefully
@@ -198,8 +244,8 @@ STEP-BY-STEP INSTRUCTIONS:
    - If comparing or ranking, use appropriate sorting/filtering
 
 4. Create visualization if requested:
-   - Check if user mentions: "chart", "graph", "plot", "visualize", "bar", "line", "histogram", etc.
-   - If yes, create appropriate plot:
+   - If user mentions: "chart", "graph", "plot", "visualize", "bar", "line", "histogram", etc.
+   - YOU MUST create a plot:
      * plt.figure(figsize=(10, 6))
      * Choose plot type: plt.bar() for categories, plt.plot() for trends, plt.hist() for distributions
      * Add labels: plt.xlabel(), plt.ylabel(), plt.title()
@@ -253,12 +299,79 @@ Remember: Print all results and create visualization if requested!"""
             
             response = self.llm.invoke(messages)
             code = response.content.strip()
+            logger.debug(f"Raw LLM response (first 500 chars): {code[:500]}")
             
             # Extract code from markdown blocks if present
             if "```python" in code:
                 code = code.split("```python")[1].split("```")[0].strip()
+                logger.debug("Extracted code from ```python block")
             elif "```" in code:
                 code = code.split("```")[1].split("```")[0].strip()
+                logger.debug("Extracted code from ``` block")
+            
+            # Validate code is not empty
+            if not code or len(code.strip()) == 0:
+                logger.error("Generated code is empty")
+                state["error"] = "Generated code is empty. Please try rephrasing your request."
+                state["python_code"] = ""
+                return state
+            
+            logger.debug(f"Code after extraction (first 300 chars): {code[:300]}")
+            
+            # CRITICAL: Ensure DataFrame is always created first
+            # Check if code uses 'df' but doesn't create it
+            try:
+                # Always prepend DataFrame creation as a safety measure
+                # This ensures df is always available regardless of what the LLM generates
+                if 'df = pd.DataFrame(data_rows)' not in code and 'df=pd.DataFrame(data_rows)' not in code:
+                    # Check if code actually uses df
+                    code_lower = code.lower()
+                    # Simple check: does code reference df in a way that suggests usage?
+                    uses_df_indicators = ['df[', 'df.', 'df ', 'df\n', 'df,', 'df)', 'df]']
+                    uses_df = any(indicator in code_lower for indicator in uses_df_indicators)
+                    
+                    if uses_df:
+                        logger.info("Code uses 'df' - prepending DataFrame creation")
+                        code = "df = pd.DataFrame(data_rows)\n\n" + code
+                    else:
+                        # Even if not explicitly used, add it for safety if code looks like it might need it
+                        # (e.g., if it's a visualization request)
+                        if any(keyword in state['query'].lower() for keyword in ['chart', 'graph', 'plot', 'visualize']):
+                            logger.info("Visualization requested - prepending DataFrame creation for safety")
+                            code = "df = pd.DataFrame(data_rows)\n\n" + code
+                
+                # Ensure DataFrame creation is at the very beginning (move if needed)
+                lines = code.split('\n')
+                df_creation_idx = None
+                
+                for i, line in enumerate(lines):
+                    line_lower = line.lower().strip()
+                    # Skip comments and empty lines
+                    if not line_lower or line_lower.startswith('#'):
+                        continue
+                    if 'df' in line_lower and ('pd.dataframe' in line_lower or 'pd.DataFrame' in line_lower):
+                        df_creation_idx = i
+                        break
+                
+                # If df creation exists but is not at the start, move it there
+                if df_creation_idx is not None and df_creation_idx > 0:
+                    logger.info(f"Moving DataFrame creation from line {df_creation_idx} to beginning")
+                    df_creation_line = lines.pop(df_creation_idx)
+                    # Find first non-comment, non-empty line
+                    insert_idx = 0
+                    for i, line in enumerate(lines):
+                        if line.strip() and not line.strip().startswith('#'):
+                            insert_idx = i
+                            break
+                    lines.insert(insert_idx, df_creation_line)
+                    code = '\n'.join(lines)
+                
+            except Exception as validation_error:
+                logger.error(f"Error during code validation: {validation_error}", exc_info=True)
+                # If validation fails, still try to add DataFrame creation as safety measure
+                if 'df = pd.DataFrame(data_rows)' not in code:
+                    logger.warning("Validation failed, adding DataFrame creation as fallback")
+                    code = "df = pd.DataFrame(data_rows)\n\n" + code
             
             state["python_code"] = code
             logger.info(f"Generated Python code for analysis ({len(code)} chars)")
@@ -272,9 +385,28 @@ Remember: Print all results and create visualization if requested!"""
                     logger.warning("Query requests visualization but generated code doesn't contain plot commands")
             
         except Exception as e:
-            logger.error(f"Error generating code: {e}")
-            state["error"] = str(e)
-            state["python_code"] = ""
+            logger.error(f"Error generating code: {e}", exc_info=True)
+            # Try to recover by creating minimal valid code
+            try:
+                # If we have data, create a basic DataFrame and analysis
+                if state.get("data") and state["data"].get("rows"):
+                    logger.warning("Attempting to recover from code generation error with fallback code")
+                    fallback_code = """df = pd.DataFrame(data_rows)
+print(f"DataFrame created with {len(df)} rows and {len(df.columns)} columns")
+print("\\nColumns:", df.columns.tolist())
+print("\\nFirst few rows:")
+print(df.head())
+print("\\nSummary statistics:")
+print(df.describe())"""
+                    state["python_code"] = fallback_code
+                    logger.info("Using fallback code for analysis")
+                else:
+                    state["error"] = f"Error generating code: {str(e)}. Please try rephrasing your request."
+                    state["python_code"] = ""
+            except Exception as recovery_error:
+                logger.error(f"Error during recovery: {recovery_error}")
+                state["error"] = f"Error generating code: {str(e)}. Please try rephrasing your request."
+                state["python_code"] = ""
         
         return state
     
@@ -302,6 +434,10 @@ Remember: Print all results and create visualization if requested!"""
                     raise ValueError(f"Unsafe operation detected: {pattern}")
             
             # Prepare execution environment
+            # Serialize non-JSON types (date, datetime, Decimal, UUID, etc.) for pandas DataFrame
+            # pandas can handle date objects, but converting to strings ensures consistency
+            serialized_rows = serialize_for_json(rows)
+            
             exec_globals = {
                 "__builtins__": {
                     "print": print,
@@ -324,7 +460,7 @@ Remember: Print all results and create visualization if requested!"""
                 },
                 "pd": pd,
                 "plt": plt,
-                "data_rows": rows,
+                "data_rows": serialized_rows,  # Use serialized rows with date strings
                 "data_columns": columns,
                 "DataFrame": pd.DataFrame,
             }
@@ -343,8 +479,17 @@ Remember: Print all results and create visualization if requested!"""
                 # IMPORTANT: Check for matplotlib figures IMMEDIATELY after execution
                 # before any cleanup happens
                 try:
+                    # Force matplotlib to create/register any pending figures
+                    plt.ioff()  # Turn off interactive mode
+                    
                     num_figures = plt.get_fignums()
                     logger.info(f"Checking for matplotlib figures: found {len(num_figures)} figure(s)")
+                    
+                    # Also check if any figures exist in the figure manager
+                    import matplotlib._pylab_helpers
+                    if hasattr(matplotlib._pylab_helpers, 'Gcf'):
+                        all_figures = matplotlib._pylab_helpers.Gcf.get_all_fig_managers()
+                        logger.info(f"Figure managers found: {len(all_figures)}")
                     
                     if num_figures:
                         logger.info(f"Found {len(num_figures)} matplotlib figure(s), converting to base64...")
@@ -353,27 +498,41 @@ Remember: Print all results and create visualization if requested!"""
                         buffer = BytesIO()
                         # Save all figures to the buffer
                         for fig_num in num_figures:
-                            fig = plt.figure(fig_num)
-                            fig.savefig(buffer, format='png', bbox_inches='tight', dpi=100, facecolor='white')
+                            try:
+                                fig = plt.figure(fig_num)
+                                if fig:
+                                    fig.savefig(buffer, format='png', bbox_inches='tight', dpi=100, facecolor='white')
+                                    logger.info(f"Saved figure {fig_num} to buffer")
+                            except Exception as fig_error:
+                                logger.warning(f"Error saving figure {fig_num}: {fig_error}")
                         
-                        plt.close('all')
+                        # Don't close figures yet - keep them for potential retry
+                        # plt.close('all')
                         
                         # Convert to base64
                         buffer.seek(0)
                         plot_bytes = buffer.read()
                         buffer.close()
                         
-                        if plot_bytes:
+                        if plot_bytes and len(plot_bytes) > 0:
                             plot_data = base64.b64encode(plot_bytes).decode('utf-8')
                             if plot_data:
                                 state["visualization"] = plot_data
                                 logger.info(f"Successfully converted plot to base64 ({len(plot_data)} chars, {len(plot_bytes)} bytes)")
+                                # Now safe to close figures
+                                plt.close('all')
                             else:
                                 logger.warning("Plot data is empty after base64 encoding")
+                                plt.close('all')
                         else:
-                            logger.warning("Plot bytes are empty")
+                            logger.warning(f"Plot bytes are empty (length: {len(plot_bytes) if plot_bytes else 0})")
+                            plt.close('all')
                     else:
                         logger.warning("No matplotlib figures found after code execution")
+                        # Check if code contains plot commands but no figures were created
+                        if any(plot_cmd in code.lower() for plot_cmd in ['plt.', 'matplotlib', 'plot(', 'bar(', 'hist(', 'scatter(']):
+                            logger.warning("Code contains plot commands but no figures were created. This might indicate an error in plot generation.")
+                        plt.close('all')
                         # Also check if a plot file was created by the code
                         import os
                         plot_paths = ["/tmp/plot.png", "plot.png", "/app/plot.png", "./plot.png"]

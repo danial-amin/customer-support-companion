@@ -73,7 +73,12 @@ class DocumentService:
     """Service for processing and ingesting documents into RAG."""
     
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
+        # Use text-embedding-ada-002 which produces 1536-dimensional embeddings
+        # This must match the Pinecone index dimension
+        self.embeddings = OpenAIEmbeddings(
+            api_key=settings.OPENAI_API_KEY,
+            model="text-embedding-ada-002"  # Explicitly set to ensure 1536 dimensions
+        )
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
