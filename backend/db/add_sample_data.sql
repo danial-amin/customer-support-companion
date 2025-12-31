@@ -35,10 +35,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO orders (customer_id, order_date, total_amount, status, shipping_address)
 SELECT 
     c.id,
-    order_date,
-    total_amount,
-    status,
-    shipping_address
+    new_orders.order_date::timestamp,
+    new_orders.total_amount,
+    new_orders.status,
+    new_orders.shipping_address
 FROM (VALUES
     ('sarah.connor@example.com', '2024-03-01 10:00:00', 199.99, 'delivered', '100 Tech Blvd, San Francisco, CA 94102'),
     ('michael.scott@example.com', '2024-03-05 14:30:00', 79.99, 'shipped', '200 Paper St, Scranton, PA 18503'),
@@ -52,7 +52,12 @@ FROM (VALUES
     ('michael.scott@example.com', '2024-03-28 14:15:00', 24.99, 'pending', '200 Paper St, Scranton, PA 18503')
 ) AS new_orders(email, order_date, total_amount, status, shipping_address)
 JOIN customers c ON c.email = new_orders.email
-ON CONFLICT DO NOTHING;
+WHERE NOT EXISTS (
+    SELECT 1 FROM orders o 
+    WHERE o.customer_id = c.id 
+    AND DATE(o.order_date) = DATE(new_orders.order_date::timestamp)
+    AND ABS(o.total_amount - new_orders.total_amount) < 0.01
+);
 
 -- Add order items for the new orders
 -- This is a bit complex, so we'll do it step by step
@@ -212,12 +217,12 @@ INSERT INTO support_tickets (customer_id, order_id, subject, description, status
 SELECT 
     c.id,
     o.id,
-    subject,
-    description,
-    status,
-    priority,
-    assigned_to,
-    created_at
+    new_tickets.subject,
+    new_tickets.description,
+    new_tickets.status,
+    new_tickets.priority,
+    new_tickets.assigned_to,
+    new_tickets.created_at::timestamp
 FROM (VALUES
     ('sarah.connor@example.com', '2024-03-01 10:00:00', 'Headphones not working', 'The headphones I received are not connecting to my device.', 'open', 'high', 'support_agent_1', '2024-03-05 10:00:00'),
     ('michael.scott@example.com', '2024-03-05 14:30:00', 'Gaming mouse button stuck', 'The left click button on my gaming mouse is stuck.', 'in_progress', 'medium', 'support_agent_2', '2024-03-08 14:30:00'),
@@ -226,8 +231,13 @@ FROM (VALUES
     ('jim.halpert@example.com', NULL, 'Smart watch battery life', 'How long does the battery last on the smart watch?', 'resolved', 'low', 'support_agent_2', '2024-03-16 11:20:00')
 ) AS new_tickets(email, order_date, subject, description, status, priority, assigned_to, created_at)
 JOIN customers c ON c.email = new_tickets.email
-LEFT JOIN orders o ON o.customer_id = c.id AND o.order_date::date = new_tickets.order_date::date
-ON CONFLICT DO NOTHING;
+LEFT JOIN orders o ON o.customer_id = c.id AND (new_tickets.order_date IS NULL OR o.order_date::date = new_tickets.order_date::timestamp::date)
+WHERE NOT EXISTS (
+    SELECT 1 FROM support_tickets st 
+    WHERE st.customer_id = c.id 
+    AND st.subject = new_tickets.subject 
+    AND DATE(st.created_at) = DATE(new_tickets.created_at::timestamp)
+);
 
 -- Add ticket messages
 INSERT INTO ticket_messages (ticket_id, sender_type, message, created_at)

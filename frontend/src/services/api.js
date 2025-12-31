@@ -53,3 +53,25 @@ export const getSchema = async () => {
   return response.data
 }
 
+export const uploadDocument = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  // Create a new axios instance for file uploads (without Content-Type header)
+  // Axios will automatically set the correct Content-Type with boundary
+  const uploadHeaders = {}
+  if (API_KEY) {
+    uploadHeaders['X-API-Key'] = API_KEY
+  }
+  
+  const response = await apiClient.post('/api/v1/rag/upload', formData, {
+    headers: uploadHeaders
+  })
+  return response.data
+}
+
+export const connectSharePoint = async (config) => {
+  const response = await apiClient.post('/api/v1/rag/sharepoint', config)
+  return response.data
+}
+

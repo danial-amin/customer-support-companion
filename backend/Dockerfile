@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
+# All dependencies use exact versions (==) to eliminate dependency resolution time
+# This makes builds faster and more reproducible
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

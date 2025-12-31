@@ -74,9 +74,15 @@ class Orchestrator:
             query = state["query"].lower()
             
             # Simple keyword-based routing (can be enhanced with LLM)
-            sql_keywords = ["sql", "query", "database", "table", "select", "count", "sum", "average", "how many"]
-            analyzer_keywords = ["analyze", "insight", "trend", "pattern", "statistic", "summary"]
-            rag_keywords = ["what", "how", "why", "explain", "tell me", "information"]
+            sql_keywords = ["sql", "query", "database", "table", "select", "count", "sum", "average", "how many", "list", "show me", "get"]
+            analyzer_keywords = [
+                "analyze", "analysis", "insight", "insights", "trend", "trends", "pattern", "patterns", 
+                "statistic", "statistics", "summary", "summarize", "compare", "comparison", "distribution",
+                "chart", "graph", "plot", "visualize", "visualization", "bar chart", "line chart", 
+                "histogram", "top", "bottom", "highest", "lowest", "best", "worst", "rank", "ranking",
+                "percentage", "ratio", "growth", "change", "over time", "by month", "by year"
+            ]
+            rag_keywords = ["what", "how", "why", "explain", "tell me", "information", "help"]
             
             has_sql = any(keyword in query for keyword in sql_keywords)
             has_analyzer = any(keyword in query for keyword in analyzer_keywords)
@@ -88,13 +94,22 @@ class Orchestrator:
             'analyzer' (data analysis), 'hybrid' (needs multiple agents).
             Return only the agent type."""
             
-            routing_prompt = f"""Query: {state['query']}
+            routing_prompt = f"""Query: "{state['query']}"
             
-            Determine if this needs:
-            - 'rag': General questions, information retrieval
-            - 'sql': Database queries, data retrieval
-            - 'analyzer': Data analysis, insights, statistics
-            - 'hybrid': Needs multiple agents (e.g., SQL + analysis)
+            Determine the best agent to handle this query:
+            
+            - 'rag': General knowledge questions, policy questions, "how to" questions, information about services/products
+              Examples: "What is your return policy?", "How do I reset my password?", "Tell me about shipping"
+            
+            - 'sql': Simple data retrieval, counting, listing records
+              Examples: "How many customers do we have?", "List all orders", "Show me customers from New York"
+            
+            - 'analyzer': Data analysis, statistics, comparisons, trends, visualizations, aggregations
+              Examples: "Analyze sales trends", "Compare revenue by month", "Show me a chart of orders over time",
+                        "What are the top 5 products?", "Calculate average order value", "Show distribution of order amounts"
+            
+            - 'hybrid': Complex queries that need both data retrieval and analysis
+              Examples: "Get customer data and analyze their purchase patterns"
             
             Return only: rag, sql, analyzer, or hybrid"""
             

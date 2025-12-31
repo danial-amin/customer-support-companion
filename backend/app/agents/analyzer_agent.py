@@ -73,22 +73,36 @@ class AnalyzerAgent:
                 state["error"] = "SQL agent is not available. Cannot fetch data for analysis."
                 return state
             
-            # Use SQL agent to get data
-            sql_result = await sql_agent.query(state["query"])
+            # First, try to understand what data is needed from the query
+            # Extract key entities and metrics from the query
+            query = state["query"]
+            
+            # Use SQL agent to get data - pass the original query
+            # The SQL agent should understand what data to fetch
+            sql_result = await sql_agent.query(query)
             
             if sql_result.get("error"):
-                state["error"] = f"Failed to fetch data: {sql_result['error']}"
+                # If SQL fails, try to provide a helpful error message
+                error_msg = sql_result.get("error", "Unknown error")
+                state["error"] = f"Failed to fetch data for analysis: {error_msg}. Please ensure your query references valid database tables and columns."
+                logger.warning(f"SQL agent failed: {error_msg}")
                 return state
             
             if sql_result.get("result"):
-                state["data"] = sql_result["result"]
+                data = sql_result["result"]
+                rows = data.get("rows", [])
+                if not rows or len(rows) == 0:
+                    state["error"] = "No data found to analyze. The query returned empty results."
+                    return state
+                state["data"] = data
                 state["sql_query"] = sql_result.get("sql_query", "")
+                logger.info(f"Retrieved {len(rows)} rows for analysis")
             else:
-                state["error"] = "No data retrieved from SQL query"
+                state["error"] = "No data retrieved from SQL query. Please check your query and try again."
             
         except Exception as e:
-            logger.error(f"Error getting data: {e}")
-            state["error"] = str(e)
+            logger.error(f"Error getting data: {e}", exc_info=True)
+            state["error"] = f"Error fetching data: {str(e)}"
         
         return state
     
@@ -109,61 +123,128 @@ class AnalyzerAgent:
             # Convert to DataFrame format for code generation
             data_sample = json.dumps(rows[:10], indent=2)  # Sample for context
             
-            system_prompt = """You are a data analysis expert. Generate Python code to analyze the provided data.
-            The code should:
-            1. Create a pandas DataFrame from the data: df = pd.DataFrame(data_rows)
-            2. Perform statistical analysis, aggregations, or visualizations as requested
-            3. ALWAYS use print() statements to show results, statistics, and findings
-            4. If visualization is requested, create a matplotlib plot
+            system_prompt = """You are an expert data analyst. Your job is to understand the user's analysis request and generate Python code to perform that analysis.
+
+UNDERSTANDING THE REQUEST:
+- Carefully read the user's query to understand what analysis they want
+- Common analysis types:
+  * Statistical summaries: "show statistics", "describe the data", "summary"
+  * Aggregations: "total", "average", "count", "sum", "group by"
+  * Comparisons: "compare", "difference", "which is higher"
+  * Trends: "over time", "by month", "trend"
+  * Distributions: "distribution", "histogram", "frequency"
+  * Visualizations: "chart", "graph", "plot", "visualize", "bar chart", "line chart"
+  * Rankings: "top", "bottom", "highest", "lowest", "best", "worst"
+  * Calculations: "percentage", "ratio", "growth", "change"
+
+CODE REQUIREMENTS:
+1. ALWAYS start by creating a DataFrame: df = pd.DataFrame(data_rows)
+2. Understand the data structure - check columns and data types
+3. Perform the requested analysis
+4. ALWAYS use print() statements to show ALL results, statistics, and findings
+5. If visualization is requested, create a matplotlib plot
+
+CRITICAL RULES FOR VISUALIZATIONS:
+- DO NOT use plt.show() - it will cause errors
+- DO NOT use plt.savefig() - the plot will be captured automatically
+- DO NOT use plt.close() - the plot needs to remain open to be captured
+- Create the plot: plt.figure(figsize=(10, 6)), then plt.plot(), plt.bar(), plt.hist(), etc.
+- ALWAYS add labels: plt.xlabel(), plt.ylabel(), plt.title()
+- The plot will be automatically captured after your code runs
+
+IMPORTANT OUTPUT RULES:
+- ALWAYS print results, statistics, and findings using print() statements
+- Print DataFrame info, statistics, aggregations, and any computed values
+- Examples:
+  * print(f"Total: {df['column'].sum()}")
+  * print(f"Average: {df['column'].mean()}")
+  * print(df.describe())
+  * print(df.groupby('column').sum())
+  * print(f"Top 5: {df.nlargest(5, 'column')}")
+
+AVAILABLE LIBRARIES:
+- pandas (as pd)
+- matplotlib.pyplot (as plt)
+- json
+- Standard Python functions: len, sum, max, min, etc.
+
+DATA AVAILABLE:
+- data_rows: list of dictionaries (the actual data)
+- data_columns: list of column names
+
+Return ONLY the Python code, no explanations or markdown. The code will be executed directly."""
             
-            CRITICAL RULES FOR VISUALIZATIONS:
-            - DO NOT use plt.show() - it will cause errors
-            - DO NOT use plt.savefig() - the plot will be captured automatically
-            - DO NOT use plt.close() - the plot needs to remain open to be captured
-            - Just create the plot: plt.figure(), then plt.plot(), plt.bar(), plt.hist(), etc.
-            - Add labels: plt.xlabel(), plt.ylabel(), plt.title()
-            - The plot will be automatically captured after your code runs
-            
-            IMPORTANT:
-            - ALWAYS print results, statistics, and findings using print() statements
-            - Print DataFrame info, statistics, aggregations, and any computed values
-            - Example: print(f"Total: {df['column'].sum()}"), print(df.describe()), etc.
-            
-            Return ONLY the Python code, no explanations. The code will be executed in an environment with:
-            - pandas (as pd)
-            - matplotlib.pyplot (as plt)
-            - json
-            - The data will be available as a list of dictionaries in a variable called 'data_rows'
-            - The columns will be available as a list in 'data_columns'
-            
-            Print all important results and statistics."""
-            
-            user_prompt = f"""Data columns: {columns}
-            Sample data (first 10 rows): {data_sample}
-            Total rows: {len(rows)}
-            
-            Analysis request: {state['query']}
-            
-            Generate Python code to:
-            1. Create a DataFrame: df = pd.DataFrame(data_rows)
-            2. Perform the requested analysis
-            3. Print all results, statistics, and findings using print() statements
-            4. If the request mentions charts, graphs, or visualizations:
-               - Create a new figure: plt.figure(figsize=(10, 6))
-               - Create the plot: plt.plot(), plt.bar(), plt.hist(), plt.scatter(), etc.
-               - Add labels: plt.xlabel('X Label'), plt.ylabel('Y Label'), plt.title('Title')
-               - DO NOT use plt.show() or plt.close() - these will prevent the plot from being captured
-               - DO NOT use plt.savefig() - the plot will be automatically captured
-            5. Always print summary statistics, aggregations, and key findings
-            
-            Example for a bar chart:
-            plt.figure(figsize=(10, 6))
-            plt.bar(x_values, y_values)
-            plt.xlabel('X Label')
-            plt.ylabel('Y Label')
-            plt.title('Chart Title')
-            
-            Make sure to use print() for all important outputs!"""
+            user_prompt = f"""USER'S ANALYSIS REQUEST: "{state['query']}"
+
+DATA INFORMATION:
+- Columns available: {columns}
+- Total rows: {len(rows)}
+- Sample data (first 10 rows):
+{data_sample}
+
+TASK: Generate Python code to perform the analysis requested by the user.
+
+STEP-BY-STEP INSTRUCTIONS:
+1. Create DataFrame: df = pd.DataFrame(data_rows)
+
+2. Understand what the user wants:
+   - Read the user's request carefully
+   - Identify what analysis they need (statistics, aggregations, comparisons, visualizations, etc.)
+   - Map the request to appropriate pandas/matplotlib operations
+
+3. Perform the analysis:
+   - Use appropriate pandas methods (groupby, agg, describe, value_counts, etc.)
+   - Calculate requested metrics (sum, mean, count, percentage, etc.)
+   - If comparing or ranking, use appropriate sorting/filtering
+
+4. Create visualization if requested:
+   - Check if user mentions: "chart", "graph", "plot", "visualize", "bar", "line", "histogram", etc.
+   - If yes, create appropriate plot:
+     * plt.figure(figsize=(10, 6))
+     * Choose plot type: plt.bar() for categories, plt.plot() for trends, plt.hist() for distributions
+     * Add labels: plt.xlabel(), plt.ylabel(), plt.title()
+     * DO NOT use plt.show(), plt.close(), or plt.savefig()
+
+5. Print all results:
+   - Print summary statistics
+   - Print aggregations
+   - Print key findings
+   - Print any calculated metrics
+   - Use print() for everything important
+
+EXAMPLES:
+
+Example 1 - Statistics:
+df = pd.DataFrame(data_rows)
+print("Summary Statistics:")
+print(df.describe())
+print(f"Total rows: {len(df)}")
+
+Example 2 - Aggregation:
+df = pd.DataFrame(data_rows)
+result = df.groupby('category')['amount'].sum()
+print("Total by category:")
+print(result)
+
+Example 3 - Bar Chart:
+df = pd.DataFrame(data_rows)
+category_totals = df.groupby('category')['amount'].sum()
+plt.figure(figsize=(10, 6))
+plt.bar(category_totals.index, category_totals.values)
+plt.xlabel('Category')
+plt.ylabel('Total Amount')
+plt.title('Total Amount by Category')
+print("Category totals:")
+print(category_totals)
+
+Example 4 - Top N:
+df = pd.DataFrame(data_rows)
+top_items = df.nlargest(5, 'value')
+print("Top 5 items:")
+print(top_items)
+
+Now generate the code for the user's specific request: "{state['query']}"
+Remember: Print all results and create visualization if requested!"""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -361,27 +442,57 @@ class AnalyzerAgent:
         """Analyze the execution results and generate insights."""
         try:
             if state.get("error"):
+                # If there's an error, still try to provide a helpful response
+                error_msg = state.get("error", "Unknown error")
+                state["analysis"] = f"I encountered an error while analyzing the data: {error_msg}. Please check your query and try again."
+                state["insights"] = ["Error occurred during analysis"]
                 return state
             
             execution_result = state.get("execution_result", "")
             code = state.get("python_code", "")
             has_visualization = bool(state.get("visualization"))
+            original_query = state.get("query", "")
             
-            system_prompt = """You are a data analyst. Analyze the results from Python code execution.
-            Provide a clear summary of what was analyzed, key findings, and insights.
-            If a visualization was created, mention what it shows."""
+            # If execution result is empty or minimal, provide a helpful message
+            if not execution_result or len(execution_result.strip()) < 10:
+                state["analysis"] = "The analysis completed, but no significant results were generated. Please check if your query is specific enough or if the data contains the information you're looking for."
+                state["insights"] = ["Analysis completed with minimal output"]
+                return state
             
-            user_prompt = f"""Analysis Request: {state['query']}
-            
-            Python Code Executed:
-{code}
+            system_prompt = """You are an expert data analyst. Your job is to interpret the results from Python code execution and provide a clear, comprehensive summary.
 
-Execution Output:
+Your response should:
+1. Clearly explain what analysis was performed
+2. Highlight the key findings and insights
+3. Present the most important statistics or metrics
+4. If a visualization was created, describe what it shows
+5. Make the analysis easy to understand for non-technical users
+6. Be concise but comprehensive
+
+Write in a clear, professional tone."""
+            
+            user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
+
+PYTHON CODE THAT WAS EXECUTED:
+```python
+{code}
+```
+
+EXECUTION OUTPUT/RESULTS:
 {execution_result}
 
-Visualization Created: {'Yes' if has_visualization else 'No'}
+VISUALIZATION CREATED: {'Yes - a chart/graph was generated' if has_visualization else 'No'}
 
-Provide a comprehensive analysis summary with key insights."""
+TASK: Provide a comprehensive analysis summary that:
+1. Explains what analysis was performed based on the user's request
+2. Highlights the key findings from the execution output
+3. Presents important statistics, metrics, or patterns discovered
+4. If a visualization was created, describe what it shows and what insights it provides
+5. Makes the results easy to understand
+
+Write a clear, well-structured summary that directly addresses the user's original request: "{original_query}"
+
+Focus on actionable insights and key findings."""
             
             messages = [
                 SystemMessage(content=system_prompt),

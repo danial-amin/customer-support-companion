@@ -48,8 +48,25 @@ from app.config import settings
 import logging
 import uuid
 import re
+import io
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# File parsing imports
+try:
+    import PyPDF2
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+    logger.warning("PyPDF2 not available. PDF parsing will be limited.")
+
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    logger.warning("python-docx not available. DOCX parsing will be limited.")
 
 
 class DocumentService:
@@ -142,6 +159,124 @@ class DocumentService:
             }
         except Exception as e:
             logger.error(f"Error ingesting document: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "chunks_ingested": 0
+            }
+    
+    def parse_file(self, file_content: bytes, filename: str) -> str:
+        """
+        Parse file content based on file extension.
+        
+        Args:
+            file_content: File content as bytes
+            filename: Original filename (used to determine file type)
+        
+        Returns:
+            Extracted text content
+        """
+        file_ext = Path(filename).suffix.lower()
+        
+        try:
+            if file_ext == '.pdf':
+                return self._parse_pdf(file_content)
+            elif file_ext in ['.docx', '.doc']:
+                return self._parse_docx(file_content)
+            elif file_ext in ['.txt', '.md', '.csv']:
+                return file_content.decode('utf-8', errors='ignore')
+            else:
+                # Try to decode as text
+                return file_content.decode('utf-8', errors='ignore')
+        except Exception as e:
+            logger.error(f"Error parsing file {filename}: {e}")
+            raise ValueError(f"Failed to parse file {filename}: {str(e)}")
+    
+    def _parse_pdf(self, file_content: bytes) -> str:
+        """Parse PDF file content."""
+        if not PDF_AVAILABLE:
+            raise ValueError("PDF parsing not available. Please install PyPDF2.")
+        
+        try:
+            pdf_file = io.BytesIO(file_content)
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            text_parts = []
+            
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text:
+                    text_parts.append(text)
+            
+            return '\n\n'.join(text_parts)
+        except Exception as e:
+            logger.error(f"Error parsing PDF: {e}")
+            raise
+    
+    def _parse_docx(self, file_content: bytes) -> str:
+        """Parse DOCX file content."""
+        if not DOCX_AVAILABLE:
+            raise ValueError("DOCX parsing not available. Please install python-docx.")
+        
+        try:
+            docx_file = io.BytesIO(file_content)
+            doc = Document(docx_file)
+            text_parts = []
+            
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+            
+            return '\n\n'.join(text_parts)
+        except Exception as e:
+            logger.error(f"Error parsing DOCX: {e}")
+            raise
+    
+    def ingest_file(
+        self,
+        file_content: bytes,
+        filename: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        namespace: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Parse and ingest a file into RAG.
+        
+        Args:
+            file_content: File content as bytes
+            filename: Original filename
+            metadata: Additional metadata
+            namespace: Pinecone namespace
+        
+        Returns:
+            Dict with ingestion results
+        """
+        try:
+            # Parse file to extract text
+            text = self.parse_file(file_content, filename)
+            
+            if not text or not text.strip():
+                return {
+                    "success": False,
+                    "error": "File appears to be empty or could not extract text",
+                    "chunks_ingested": 0
+                }
+            
+            # Prepare metadata
+            file_metadata = {
+                "file_type": Path(filename).suffix,
+                "file_name": filename,
+                **(metadata or {})
+            }
+            
+            # Ingest using existing method
+            return self.ingest_document(
+                text=text,
+                metadata=file_metadata,
+                source=filename,
+                namespace=namespace
+            )
+        except Exception as e:
+            logger.error(f"Error ingesting file {filename}: {e}")
             return {
                 "success": False,
                 "error": str(e),

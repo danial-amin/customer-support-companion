@@ -1,5 +1,5 @@
 """API routes for the application."""
-from fastapi import APIRouter, HTTPException, Depends, Security
+from fastapi import APIRouter, HTTPException, Depends, Security, UploadFile, File
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from app.agents.rag_agent import rag_agent
@@ -10,6 +10,7 @@ from app.security import verify_api_key
 from app.services.pinecone_service import pinecone_service
 from app.services.database_service import database_service
 from app.services.document_service import document_service
+from app.services.sharepoint_service import sharepoint_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,24 @@ class DocumentIngestResponse(BaseModel):
     success: bool
     chunks_ingested: int
     source: Optional[str] = None
+    error: Optional[str] = None
+
+
+class SharePointConnectRequest(BaseModel):
+    """Request model for SharePoint connection."""
+    site_url: str = Field(..., description="SharePoint site URL")
+    tenant_id: str = Field(..., description="Azure AD tenant ID")
+    client_id: str = Field(..., description="Azure AD application (client) ID")
+    client_secret: str = Field(..., description="Azure AD client secret")
+    library_name: Optional[str] = Field("Documents", description="Document library name")
+    folder_path: Optional[str] = Field(None, description="Folder path within library")
+
+
+class SharePointConnectResponse(BaseModel):
+    """Response model for SharePoint connection."""
+    success: bool
+    documents_retrieved: int
+    chunks_ingested: int
     error: Optional[str] = None
 
 
@@ -326,6 +345,148 @@ async def ingest_document(
         raise
     except Exception as e:
         logger.error(f"Error ingesting document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/upload", response_model=DocumentIngestResponse)
+async def upload_file(
+    file: UploadFile = File(...),
+    api_key: bool = Security(verify_api_key)
+):
+    """
+    Upload and ingest a file into the RAG system.
+    Supports: .txt, .pdf, .doc, .docx, .md, .csv
+    """
+    try:
+        # Validate file type
+        allowed_extensions = ['.txt', '.pdf', '.doc', '.docx', '.md', '.csv']
+        file_ext = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+            )
+        
+        # Validate file size (max 10MB)
+        file_content = await file.read()
+        if len(file_content) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="File size exceeds 10MB limit"
+            )
+        
+        if not pinecone_service.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Pinecone service is not available. Please check PINECONE_API_KEY configuration."
+            )
+        
+        # Ingest file
+        result = document_service.ingest_file(
+            file_content=file_content,
+            filename=file.filename
+        )
+        
+        if result.get("success"):
+            return DocumentIngestResponse(
+                success=True,
+                chunks_ingested=result.get("chunks_ingested", 0),
+                source=result.get("source")
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Failed to ingest file")
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/sharepoint", response_model=SharePointConnectResponse)
+async def connect_sharepoint(
+    request: SharePointConnectRequest,
+    api_key: bool = Security(verify_api_key)
+):
+    """
+    Connect to SharePoint and retrieve documents for RAG ingestion.
+    Securely handles credentials - they are not stored after processing.
+    """
+    try:
+        if not sharepoint_service.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="SharePoint service is not available. Please install Office365-REST-Python-Client."
+            )
+        
+        if not pinecone_service.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Pinecone service is not available. Please check PINECONE_API_KEY configuration."
+            )
+        
+        # Retrieve documents from SharePoint
+        documents = sharepoint_service.retrieve_and_process_documents(
+            site_url=request.site_url,
+            tenant_id=request.tenant_id,
+            client_id=request.client_id,
+            client_secret=request.client_secret,
+            library_name=request.library_name or "Documents",
+            folder_path=request.folder_path
+        )
+        
+        if not documents:
+            return SharePointConnectResponse(
+                success=True,
+                documents_retrieved=0,
+                chunks_ingested=0
+            )
+        
+        # Process and ingest each document
+        total_chunks = 0
+        successful_docs = 0
+        
+        for doc in documents:
+            try:
+                # Parse document content
+                text = document_service.parse_file(
+                    file_content=doc["content"],
+                    filename=doc["name"]
+                )
+                
+                if text and text.strip():
+                    # Ingest document
+                    result = document_service.ingest_document(
+                        text=text,
+                        metadata=doc.get("metadata", {}),
+                        source=doc["name"]
+                    )
+                    
+                    if result.get("success"):
+                        total_chunks += result.get("chunks_ingested", 0)
+                        successful_docs += 1
+                    else:
+                        logger.warning(f"Failed to ingest document {doc['name']}: {result.get('error')}")
+                else:
+                    logger.warning(f"Document {doc['name']} appears to be empty")
+                    
+            except Exception as e:
+                logger.error(f"Error processing document {doc.get('name', 'unknown')}: {e}")
+                continue
+        
+        return SharePointConnectResponse(
+            success=True,
+            documents_retrieved=successful_docs,
+            chunks_ingested=total_chunks
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error connecting to SharePoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
