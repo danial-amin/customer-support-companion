@@ -142,19 +142,19 @@ class AnalyzerAgent:
             visualization_keywords = ['chart', 'graph', 'plot', 'visualize', 'visualization', 'bar', 'line', 'histogram', 'pie', 'scatter']
             needs_visualization = any(keyword in query_lower for keyword in visualization_keywords)
             
-            system_prompt = """You are an expert data analyst. Your job is to understand the user's analysis request and generate Python code to perform that analysis.
+            system_prompt = """You are an expert fuel management data analyst for Total Energies. Your job is to understand the user's analysis request for fuel management data and generate Python code to perform that analysis.
 
 UNDERSTANDING THE REQUEST:
-- Carefully read the user's query to understand what analysis they want
-- Common analysis types:
-  * Statistical summaries: "show statistics", "describe the data", "summary"
-  * Aggregations: "total", "average", "count", "sum", "group by"
-  * Comparisons: "compare", "difference", "which is higher"
-  * Trends: "over time", "by month", "trend"
-  * Distributions: "distribution", "histogram", "frequency"
-  * Visualizations: "chart", "graph", "plot", "visualize", "bar chart", "line chart"
-  * Rankings: "top", "bottom", "highest", "lowest", "best", "worst"
-  * Calculations: "percentage", "ratio", "growth", "change"
+- Carefully read the user's query to understand what analysis they want for fuel management data
+- Common analysis types for fuel management:
+  * Statistical summaries: "show statistics", "describe the data", "summary" (for fuel transactions, consumption, inventory)
+  * Aggregations: "total", "average", "count", "sum", "group by" (fuel consumption, costs, transactions by station/vehicle)
+  * Comparisons: "compare", "difference", "which is higher" (fuel costs, consumption between stations/vehicles/departments)
+  * Trends: "over time", "by month", "trend" (fuel consumption trends, price trends, transaction volume)
+  * Distributions: "distribution", "histogram", "frequency" (fuel inventory levels, transaction amounts)
+  * Visualizations: "chart", "graph", "plot", "visualize", "bar chart", "line chart" (fuel consumption charts, station performance)
+  * Rankings: "top", "bottom", "highest", "lowest", "best", "worst" (top fuel stations, most fuel-efficient vehicles)
+  * Calculations: "percentage", "ratio", "growth", "change" (fuel efficiency, cost per kilometer, inventory utilization)
 
 CODE REQUIREMENTS:
 1. ALWAYS start by creating a DataFrame: df = pd.DataFrame(data_rows)
@@ -201,16 +201,33 @@ Return ONLY the Python code, no explanations or markdown. The code will be execu
             if needs_visualization:
                 viz_instruction = f"""
 
-⚠️ VISUALIZATION REQUIRED ⚠️
-The user's request contains visualization keywords. YOU MUST CREATE A PLOT/CHART.
-- Create plt.figure(figsize=(10, 6))
-- Choose appropriate plot type based on data:
-  * plt.bar() for categorical comparisons
-  * plt.plot() for trends over time
-  * plt.hist() for distributions
-  * plt.scatter() for relationships
-- Add labels: plt.xlabel(), plt.ylabel(), plt.title()
-- DO NOT use plt.show(), plt.close(), or plt.savefig()
+⚠️⚠️⚠️ VISUALIZATION REQUIRED - THIS IS MANDATORY ⚠️⚠️⚠️
+The user's request contains visualization keywords: {[kw for kw in visualization_keywords if kw in query_lower]}.
+YOU MUST CREATE A PLOT/CHART. DO NOT SKIP THIS STEP.
+
+REQUIRED STEPS (DO ALL OF THESE):
+1. Create a figure: plt.figure(figsize=(10, 6))
+2. Choose appropriate plot type based on data:
+   * plt.bar(x, y) for categorical comparisons (e.g., stations, vehicles, fuel types)
+   * plt.plot(x, y) for trends over time
+   * plt.hist(data, bins=20) for distributions
+   * plt.scatter(x, y) for relationships
+   * df.plot(kind='bar') or df.plot(kind='line') for DataFrame plots
+3. ALWAYS add labels: 
+   - plt.xlabel('Label')
+   - plt.ylabel('Label')
+   - plt.title('Title')
+4. DO NOT use plt.show(), plt.close(), or plt.savefig() - the plot will be captured automatically
+5. The plot MUST be created - if you're not sure what to plot, create a bar chart of the first column vs counts or a histogram of the first numeric column
+
+EXAMPLE FOR BAR CHART:
+plt.figure(figsize=(10, 6))
+category_totals = df.groupby('category_column')['numeric_column'].sum()
+plt.bar(range(len(category_totals)), category_totals.values)
+plt.xticks(range(len(category_totals)), category_totals.index, rotation=45)
+plt.xlabel('Category')
+plt.ylabel('Total')
+plt.title('Total by Category')
 """
             
             user_prompt = f"""USER'S ANALYSIS REQUEST: "{state['query']}"
@@ -373,6 +390,60 @@ Remember: Print all results and create visualization if requested!"""
                     logger.warning("Validation failed, adding DataFrame creation as fallback")
                     code = "df = pd.DataFrame(data_rows)\n\n" + code
             
+            # If visualization is needed but code doesn't create a plot, inject plot code
+            if needs_visualization:
+                has_plot_code = any(plot_cmd in code.lower() for plot_cmd in ['plt.', 'matplotlib', 'plot(', 'bar(', 'hist(', 'scatter(', 'df.plot('])
+                if not has_plot_code:
+                    logger.warning("Visualization requested but code doesn't create plot - injecting plot code")
+                    # Add plot code after DataFrame creation
+                    plot_injection = """
+# Create visualization as requested
+plt.figure(figsize=(10, 6))
+# Determine appropriate plot type based on data
+numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+
+if len(numeric_cols) > 0 and len(categorical_cols) > 0:
+    # Bar chart: categorical vs numeric
+    cat_col = categorical_cols[0]
+    num_col = numeric_cols[0]
+    if len(df) <= 20:
+        grouped = df.groupby(cat_col)[num_col].sum().head(10)
+        plt.bar(range(len(grouped)), grouped.values)
+        plt.xticks(range(len(grouped)), grouped.index, rotation=45, ha='right')
+        plt.xlabel(cat_col)
+        plt.ylabel(num_col)
+        plt.title(f'{num_col} by {cat_col}')
+    else:
+        plt.hist(df[num_col].dropna(), bins=20)
+        plt.xlabel(num_col)
+        plt.ylabel('Frequency')
+        plt.title(f'Distribution of {num_col}')
+elif len(numeric_cols) > 0:
+    # Histogram of first numeric column
+    num_col = numeric_cols[0]
+    plt.hist(df[num_col].dropna(), bins=20)
+    plt.xlabel(num_col)
+    plt.ylabel('Frequency')
+    plt.title(f'Distribution of {num_col}')
+elif len(categorical_cols) > 0:
+    # Bar chart of value counts
+    cat_col = categorical_cols[0]
+    value_counts = df[cat_col].value_counts().head(10)
+    plt.bar(range(len(value_counts)), value_counts.values)
+    plt.xticks(range(len(value_counts)), value_counts.index, rotation=45, ha='right')
+    plt.xlabel(cat_col)
+    plt.ylabel('Count')
+    plt.title(f'Count by {cat_col}')
+"""
+                    # Insert after DataFrame creation
+                    if 'df = pd.DataFrame(data_rows)' in code:
+                        code = code.replace('df = pd.DataFrame(data_rows)', f'df = pd.DataFrame(data_rows){plot_injection}')
+                    else:
+                        # Prepend if DataFrame creation wasn't found
+                        code = f"df = pd.DataFrame(data_rows){plot_injection}\n\n{code}"
+                    logger.info("Injected plot code into generated code")
+            
             state["python_code"] = code
             logger.info(f"Generated Python code for analysis ({len(code)} chars)")
             # Log if visualization keywords are in the query
@@ -532,6 +603,86 @@ print(df.describe())"""
                         # Check if code contains plot commands but no figures were created
                         if any(plot_cmd in code.lower() for plot_cmd in ['plt.', 'matplotlib', 'plot(', 'bar(', 'hist(', 'scatter(']):
                             logger.warning("Code contains plot commands but no figures were created. This might indicate an error in plot generation.")
+                        
+                        # FALLBACK: If visualization was requested but no plot was created, try to create one
+                        query_lower = state['query'].lower()
+                        visualization_keywords = ['chart', 'graph', 'plot', 'visualize', 'visualization', 'bar', 'line', 'histogram', 'pie', 'scatter']
+                        needs_visualization = any(keyword in query_lower for keyword in visualization_keywords)
+                        
+                        if needs_visualization and 'df' in exec_locals:
+                            try:
+                                df = exec_locals['df']
+                                if isinstance(df, pd.DataFrame) and len(df) > 0:
+                                    logger.info("Visualization requested but not created - generating fallback plot")
+                                    plt.close('all')  # Clean up first
+                                    
+                                    # Create a simple plot based on the data
+                                    fig, ax = plt.subplots(figsize=(10, 6))
+                                    
+                                    # Try to create an appropriate plot based on data structure
+                                    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+                                    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+                                    
+                                    if len(numeric_cols) > 0 and len(categorical_cols) > 0:
+                                        # Bar chart: categorical vs numeric
+                                        cat_col = categorical_cols[0]
+                                        num_col = numeric_cols[0]
+                                        if len(df) <= 20:  # Only if reasonable number of categories
+                                            grouped = df.groupby(cat_col)[num_col].sum().head(10)
+                                            ax.bar(range(len(grouped)), grouped.values)
+                                            ax.set_xticks(range(len(grouped)))
+                                            ax.set_xticklabels(grouped.index, rotation=45, ha='right')
+                                            ax.set_xlabel(cat_col)
+                                            ax.set_ylabel(num_col)
+                                            ax.set_title(f'{num_col} by {cat_col}')
+                                        else:
+                                            # Histogram of numeric column
+                                            ax.hist(df[num_col].dropna(), bins=20)
+                                            ax.set_xlabel(num_col)
+                                            ax.set_ylabel('Frequency')
+                                            ax.set_title(f'Distribution of {num_col}')
+                                    elif len(numeric_cols) > 0:
+                                        # Histogram of first numeric column
+                                        num_col = numeric_cols[0]
+                                        ax.hist(df[num_col].dropna(), bins=20)
+                                        ax.set_xlabel(num_col)
+                                        ax.set_ylabel('Frequency')
+                                        ax.set_title(f'Distribution of {num_col}')
+                                    elif len(categorical_cols) > 0:
+                                        # Bar chart of value counts
+                                        cat_col = categorical_cols[0]
+                                        value_counts = df[cat_col].value_counts().head(10)
+                                        ax.bar(range(len(value_counts)), value_counts.values)
+                                        ax.set_xticks(range(len(value_counts)))
+                                        ax.set_xticklabels(value_counts.index, rotation=45, ha='right')
+                                        ax.set_xlabel(cat_col)
+                                        ax.set_ylabel('Count')
+                                        ax.set_title(f'Count by {cat_col}')
+                                    else:
+                                        # Default: simple bar chart of row counts
+                                        ax.bar(['Total'], [len(df)])
+                                        ax.set_ylabel('Count')
+                                        ax.set_title('Data Summary')
+                                    
+                                    plt.tight_layout()
+                                    
+                                    # Save to buffer
+                                    buffer = BytesIO()
+                                    fig.savefig(buffer, format='png', bbox_inches='tight', dpi=100, facecolor='white')
+                                    buffer.seek(0)
+                                    plot_bytes = buffer.read()
+                                    buffer.close()
+                                    plt.close('all')
+                                    
+                                    if plot_bytes and len(plot_bytes) > 0:
+                                        plot_data = base64.b64encode(plot_bytes).decode('utf-8')
+                                        state["visualization"] = plot_data
+                                        logger.info(f"Successfully created fallback plot ({len(plot_data)} chars)")
+                                    else:
+                                        logger.warning("Fallback plot creation failed - empty buffer")
+                            except Exception as fallback_error:
+                                logger.error(f"Error creating fallback plot: {fallback_error}", exc_info=True)
+                        
                         plt.close('all')
                         # Also check if a plot file was created by the code
                         import os
@@ -618,19 +769,48 @@ print(df.describe())"""
                 state["insights"] = ["Analysis completed with minimal output"]
                 return state
             
-            system_prompt = """You are an expert data analyst. Your job is to interpret the results from Python code execution and provide a clear, comprehensive summary.
+            system_prompt = """You are an expert fuel management data analyst for Total Energies. Your job is to interpret the results from Python code execution on fuel management data and provide a clear, comprehensive summary.
 
 Your response should:
-1. Clearly explain what analysis was performed
-2. Highlight the key findings and insights
-3. Present the most important statistics or metrics
-4. If a visualization was created, describe what it shows
+1. Clearly explain what analysis was performed (fuel consumption, inventory, transactions, etc.)
+2. Highlight the key findings and insights related to fuel management
+3. Present the most important statistics or metrics (fuel quantities, costs, efficiency, etc.)
+4. If a visualization was created, describe what it shows in the context of fuel management
 5. Make the analysis easy to understand for non-technical users
 6. Be concise but comprehensive
+7. Always respond in the same language as the user's question (English or French)
 
-Write in a clear, professional tone."""
+Write in a clear, professional tone. Use fuel management terminology appropriately."""
             
-            user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
+            # Detect language from query
+            query_lower = original_query.lower()
+            is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels', 'analyse', 'montre', 'graphique', 'tendance'])
+            
+            if is_french:
+                user_prompt = f"""DEMANDE ORIGINALE DE L'UTILISATEUR: "{original_query}"
+
+CODE PYTHON QUI A ÉTÉ EXÉCUTÉ:
+```python
+{code}
+```
+
+SORTIE/RÉSULTATS D'EXÉCUTION:
+{execution_result}
+
+VISUALISATION CRÉÉE: {'Oui - un graphique a été généré' if has_visualization else 'Non'}
+
+TÂCHE: Fournir un résumé d'analyse complet qui:
+1. Explique quelle analyse a été effectuée basée sur la demande de l'utilisateur
+2. Met en évidence les principales conclusions de la sortie d'exécution
+3. Présente les statistiques, métriques ou modèles importants découverts
+4. Si une visualisation a été créée, décrit ce qu'elle montre et quels insights elle fournit
+5. Rend les résultats faciles à comprendre
+
+Écrivez un résumé clair et bien structuré qui répond directement à la demande originale de l'utilisateur: "{original_query}"
+
+Concentrez-vous sur les insights actionnables et les conclusions clés. Répondez en français."""
+            else:
+                user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
 
 PYTHON CODE THAT WAS EXECUTED:
 ```python
@@ -651,7 +831,7 @@ TASK: Provide a comprehensive analysis summary that:
 
 Write a clear, well-structured summary that directly addresses the user's original request: "{original_query}"
 
-Focus on actionable insights and key findings."""
+Focus on actionable insights and key findings. Respond in the same language as the question."""
             
             messages = [
                 SystemMessage(content=system_prompt),

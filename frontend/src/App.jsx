@@ -27,7 +27,7 @@ function Navigation() {
   return (
     <header className="app-header">
       <div className="header-content">
-        <h1>🤖 Customer Support AI</h1>
+        <h1>⛽ Total Energies Fuel Management</h1>
         <StatusIndicator isHealthy={isHealthy} />
       </div>
       <nav className="main-nav">
@@ -44,7 +44,7 @@ function Navigation() {
           📄 Documents
         </Link>
       </nav>
-      <p className="subtitle">Powered by LangGraph with RAG, SQL, and Data Analysis</p>
+      <p className="subtitle">Système de gestion de carburant Total Energies - Powered by LangGraph with RAG, SQL, and Data Analysis</p>
     </header>
   )
 }

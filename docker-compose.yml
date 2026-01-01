@@ -56,7 +56,7 @@ services:
       - "5433:5432"  # Using 5433 externally to avoid conflicts
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/db/init_fuel_management.sql:/docker-entrypoint-initdb.d/init_fuel_management.sql:ro
     restart: unless-stopped
     networks:
       - customer-support-network

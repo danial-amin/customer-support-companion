@@ -163,7 +163,22 @@ Body: {
 
 ## Deployment
 
-### Production Deployment
+### Railway Deployment (Recommended)
+
+Deploy to Railway in minutes with automatic HTTPS, database provisioning, and zero-config deployments.
+
+**Quick Start:**
+1. See [RAILWAY_QUICKSTART.md](./RAILWAY_QUICKSTART.md) for 5-minute deployment
+2. See [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md) for detailed guide
+
+**Key Steps:**
+- Connect GitHub repo to Railway
+- Add PostgreSQL service
+- Set environment variables
+- Initialize database with `backend/db/init_fuel_management.sql`
+- Generate public URLs
+
+### Production Deployment (Docker)
 
 1. **Update environment variables** with production values
 2. **Set strong SECRET_KEY** for JWT tokens

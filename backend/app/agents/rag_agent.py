@@ -136,24 +136,49 @@ class RAGAgent:
             
             # If no context was found, provide helpful message
             if not context_text:
-                state["answer"] = (
-                    "I don't have any documents in my knowledge base to answer that question. "
-                    "Please upload relevant documents using the Documents page, or try asking a different question. "
-                    "If you believe this information should be available, the documents may need to be re-uploaded after fixing the Pinecone index dimension."
-                )
+                # Detect language from query
+                query_lower = state["query"].lower()
+                is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels'])
+                
+                if is_french:
+                    state["answer"] = (
+                        "Je n'ai aucun document dans ma base de connaissances pour répondre à cette question. "
+                        "Veuillez télécharger des documents pertinents en utilisant la page Documents, ou essayez de poser une question différente. "
+                        "Si vous pensez que ces informations devraient être disponibles, les documents peuvent devoir être retéléchargés."
+                    )
+                else:
+                    state["answer"] = (
+                        "I don't have any documents in my knowledge base to answer that question. "
+                        "Please upload relevant documents using the Documents page, or try asking a different question. "
+                        "If you believe this information should be available, the documents may need to be re-uploaded after fixing the Pinecone index dimension."
+                    )
                 return state
             
-            system_prompt = """You are a helpful customer support assistant. 
+            system_prompt = """You are a helpful fuel management support assistant for Total Energies. 
+            You help customers and staff with questions about fuel stations, fuel types, fuel cards, vehicles, 
+            fuel transactions, inventory management, and fuel management policies.
             Use the provided context to answer the user's question accurately.
             If the context doesn't contain enough information, say so.
-            Be concise and helpful."""
+            Be concise and helpful. Always respond in the same language as the user's question."""
             
-            user_prompt = f"""Context:
+            # Detect language from query
+            query_lower = state["query"].lower()
+            is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels', 'explique', 'parle'])
+            
+            if is_french:
+                user_prompt = f"""Contexte:
 {context_text}
 
 Question: {state['query']}
 
-Please provide a helpful answer based on the context above."""
+Veuillez fournir une réponse utile basée sur le contexte ci-dessus. Répondez en français."""
+            else:
+                user_prompt = f"""Context:
+{context_text}
+
+Question: {state['query']}
+
+Please provide a helpful answer based on the context above. Respond in the same language as the question."""
             
             messages = [
                 SystemMessage(content=system_prompt),
