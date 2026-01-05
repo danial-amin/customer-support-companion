@@ -30,8 +30,12 @@ Deploy your own PostgreSQL container on Railway that auto-initializes with your 
    ```
    OPENAI_API_KEY=your-key
    SECRET_KEY=your-secret
-   DATABASE_URL=${{postgres.DATABASE_URL}}
+   DATABASE_URL=postgresql://postgres:your-password@postgres.railway.internal:5432/customersupport
    ```
+   
+   **💡 Get the password from:** PostgreSQL service → Variables → `POSTGRES_PASSWORD`
+   
+   **Format:** `postgresql://USER:PASSWORD@SERVICE_NAME.railway.internal:5432/DATABASE`
 
 ### 3. Verify
 

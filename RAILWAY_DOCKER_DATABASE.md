@@ -76,22 +76,43 @@ I've already created `backend/db/Dockerfile.postgres` for you! It:
    - **Dockerfile Path**: `Dockerfile`
 
 3. **Add Environment Variables:**
+   
+   **First, get the connection details from your PostgreSQL service:**
+   
+   **Method 1: Using Railway Service References (if available)**
+   ```
+   DATABASE_URL=${{postgres.DATABASE_URL}}
+   ```
+   
+   **Method 2: Manual Construction (Recommended for Docker containers)**
+   
+   Go to your **PostgreSQL service** → **"Variables"** tab and note:
+   - Service name (e.g., `postgres`)
+   - Your environment variables: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+   
+   Then in **Backend service** → **"Variables"**, set:
    ```
    OPENAI_API_KEY=your-openai-key
    SECRET_KEY=your-secret-key
    
-   # Connect to PostgreSQL container using Railway service reference
-   DATABASE_URL=${{postgres.DATABASE_URL}}
-   
-   # OR use individual variables (if service reference doesn't work)
-   DB_HOST=${{postgres.PGHOST}}
-   DB_PORT=${{postgres.PGPORT}}
-   DB_NAME=${{postgres.PGDATABASE}}
-   DB_USER=${{postgres.PGUSER}}
-   DB_PASSWORD=${{postgres.PGPASSWORD}}
+   # Construct DATABASE_URL manually
+   DATABASE_URL=postgresql://postgres:your-password@postgres.railway.internal:5432/customersupport
    ```
-
-   **💡 Tip**: Railway service references like `${{postgres.DATABASE_URL}}` automatically connect services. The service name must match what you named your PostgreSQL service.
+   
+   **Or use individual variables:**
+   ```
+   DB_HOST=postgres.railway.internal
+   DB_PORT=5432
+   DB_NAME=customersupport
+   DB_USER=postgres
+   DB_PASSWORD=your-password-from-postgres-service
+   ```
+   
+   **💡 Important**: 
+   - Use `postgres.railway.internal` as the host (Railway's internal DNS)
+   - Or use your service name: `your-service-name.railway.internal`
+   - Port is usually `5432`
+   - Use the same values you set in PostgreSQL service environment variables
 
 ### Step 6: Generate Public URLs
 
@@ -150,7 +171,37 @@ CMD ["docker-compose", "up"]
 
 **Note**: This requires Docker-in-Docker which Railway may not support well.
 
-## Service Naming and References
+## Getting DATABASE_URL for Docker Container
+
+**⚠️ Important**: Railway service references (`${{postgres.DATABASE_URL}}`) work for **managed services**, but may NOT work for custom Docker containers.
+
+### How to Get DATABASE_URL
+
+1. **Go to PostgreSQL service** → **"Variables"** tab
+2. **Note these values:**
+   - Service name (shown at top, e.g., `postgres`)
+   - `POSTGRES_DB` (e.g., `customersupport`)
+   - `POSTGRES_USER` (e.g., `postgres`)
+   - `POSTGRES_PASSWORD` (your password)
+
+3. **Construct DATABASE_URL:**
+   ```
+   postgresql://USER:PASSWORD@SERVICE_NAME.railway.internal:5432/DATABASE
+   ```
+
+4. **Example:**
+   ```
+   postgresql://postgres:my-password@postgres.railway.internal:5432/customersupport
+   ```
+
+5. **Set in Backend service** → **"Variables"**:
+   ```
+   DATABASE_URL=postgresql://postgres:your-password@postgres.railway.internal:5432/customersupport
+   ```
+
+**💡 Quick Reference:** See [RAILWAY_GET_DATABASE_URL.md](./RAILWAY_GET_DATABASE_URL.md) for detailed instructions.
+
+### Service References (May Not Work for Docker Containers)
 
 Railway service references work like this:
 
@@ -158,15 +209,9 @@ Railway service references work like this:
 ${{SERVICE_NAME.VARIABLE_NAME}}
 ```
 
-**Important**: The service name must match exactly (case-sensitive).
+**Note**: These work for Railway's managed services, but custom Docker containers may not expose these variables automatically.
 
-**Common PostgreSQL variables:**
-- `${{postgres.DATABASE_URL}}` - Full connection string
-- `${{postgres.PGHOST}}` - Database host
-- `${{postgres.PGPORT}}` - Database port
-- `${{postgres.PGDATABASE}}` - Database name
-- `${{postgres.PGUSER}}` - Database user
-- `${{postgres.PGPASSWORD}}` - Database password
+**If service references don't work**, construct the URL manually as shown above.
 
 ## Database Initialization
 
