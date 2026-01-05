@@ -1,0 +1,20 @@
+FROM postgres:15-alpine
+
+# Copy initialization script
+# This will run automatically when the database is first created
+# The file is in the same directory as this Dockerfile
+COPY init_fuel_management.sql /docker-entrypoint-initdb.d/init_fuel_management.sql
+
+# Set default environment variables
+# These can be overridden by Railway environment variables
+ENV POSTGRES_DB=customersupport
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=postgres
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Use default PostgreSQL entrypoint
+# This will automatically run scripts in /docker-entrypoint-initdb.d/
+# when the database is initialized for the first time
+

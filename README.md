@@ -161,22 +161,39 @@ Body: {
 - Efficient vector search
 - Database query optimization
 
+## Database Options
+
+You can use your own database service instead of Railway's managed PostgreSQL:
+
+- **Docker Compose** - Already configured! Just use `docker-compose up -d postgres`
+- **Local PostgreSQL** - Install and run locally on your Mac
+- **Cloud Services** - AWS RDS, Google Cloud SQL, Supabase, DigitalOcean
+- **Self-Hosted** - Your own PostgreSQL server
+
+See [OWN_DATABASE_SETUP.md](./OWN_DATABASE_SETUP.md) for complete guide.
+
 ## Deployment
 
 ### Railway Deployment (Recommended)
 
-Deploy to Railway in minutes with automatic HTTPS, managed PostgreSQL database, and zero-config deployments.
+Deploy to Railway in minutes with automatic HTTPS and zero-config deployments.
+
+**Database Options:**
+1. **Railway Managed PostgreSQL** - Easiest, automatic backups
+   - See [RAILWAY_DATABASE_DEPLOYMENT.md](./RAILWAY_DATABASE_DEPLOYMENT.md)
+2. **Docker Container PostgreSQL** - Full control, auto-initializes
+   - See [RAILWAY_DOCKER_DATABASE.md](./RAILWAY_DOCKER_DATABASE.md)
 
 **Quick Start:**
 1. See [RAILWAY_QUICKSTART.md](./RAILWAY_QUICKSTART.md) for 5-minute deployment
-2. See [RAILWAY_DATABASE_DEPLOYMENT.md](./RAILWAY_DATABASE_DEPLOYMENT.md) for detailed guide using Railway's managed PostgreSQL
+2. Choose your database option above for detailed guide
 
 **Key Steps:**
 - Connect GitHub repo to Railway
-- Add Railway PostgreSQL database service (managed)
+- Deploy PostgreSQL (managed or Docker container)
 - Deploy backend service
-- Connect backend to database using `${{Postgres.DATABASE_URL}}`
-- Initialize database with `backend/db/init_fuel_management.sql`
+- Connect backend to database
+- Database auto-initializes with schema
 - Generate public URLs
 
 ### Production Deployment (Docker)

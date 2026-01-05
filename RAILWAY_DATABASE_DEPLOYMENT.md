@@ -1,6 +1,25 @@
-# Railway Deployment with Managed PostgreSQL Database
+# Railway Deployment with PostgreSQL Database
 
-This guide shows you how to deploy your Total Energies Fuel Management AI system on Railway using Railway's managed PostgreSQL database service.
+This guide shows you how to deploy your Total Energies Fuel Management AI system on Railway with PostgreSQL database.
+
+## Database Options
+
+You have two options for PostgreSQL on Railway:
+
+1. **Railway Managed PostgreSQL** (Easiest) - Railway's managed service
+2. **Your Own Docker Container** (More Control) - Deploy PostgreSQL as a Docker container
+
+**Which to choose?**
+- **Managed Service**: Easiest setup, automatic backups, zero maintenance
+- **Docker Container**: Full control, custom initialization, more configuration
+
+**For Docker Container setup, see:** [RAILWAY_DOCKER_DATABASE.md](./RAILWAY_DOCKER_DATABASE.md)
+
+---
+
+## Using Railway's Managed PostgreSQL Database
+
+This section covers Railway's managed PostgreSQL service.
 
 ## 🎯 Overview
 
