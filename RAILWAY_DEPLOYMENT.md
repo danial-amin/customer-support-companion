@@ -108,7 +108,7 @@ After the PostgreSQL service is running, you need to initialize it with your sch
    ```
    Or via psql:
    ```bash
-   psql $DATABASE_URL -f backend/db/init_fuel_management.sql
+   psql "$DATABASE_URL?sslmode=require" -f backend/db/init_fuel_management.sql
    ```
 
 Alternatively, you can use Railway's "Deploy Script" feature to run migrations automatically.

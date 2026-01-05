@@ -209,7 +209,23 @@ brew install postgresql
 
 3. **Run initialization:**
    ```bash
-   psql "$DATABASE_URL" -f backend/db/init_fuel_management.sql
+   # Railway PostgreSQL requires SSL - add sslmode parameter
+   psql "$DATABASE_URL?sslmode=require" -f backend/db/init_fuel_management.sql
+   ```
+   
+   **If you get SSL errors, see [RAILWAY_PSQL_SSL_FIX.md](./RAILWAY_PSQL_SSL_FIX.md) for troubleshooting.**
+   
+   **If you get SSL errors, try:**
+   ```bash
+   # Option 1: Require SSL (recommended)
+   psql "$DATABASE_URL?sslmode=require" -f backend/db/init_fuel_management.sql
+   
+   # Option 2: Prefer SSL (fallback)
+   psql "$DATABASE_URL?sslmode=prefer" -f backend/db/init_fuel_management.sql
+   
+   # Option 3: Use environment variable with SSL
+   export PGDATABASE=$(echo $DATABASE_URL | sed 's/.*\/\([^?]*\).*/\1/')
+   psql "$DATABASE_URL?sslmode=require" -f backend/db/init_fuel_management.sql
    ```
 
 **💡 Mac Tip**: If `psql` command is not found, you may need to add it to your PATH:

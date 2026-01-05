@@ -20,13 +20,13 @@ echo "Database: $DATABASE_URL"
 
 # Run initialization script
 echo "📝 Running database initialization script..."
-psql "$DATABASE_URL" -f backend/db/init_fuel_management.sql
+psql "$DATABASE_URL?sslmode=require" -f backend/db/init_fuel_management.sql
 
 echo "✅ Database initialization complete!"
 
 # Verify tables were created
 echo "🔍 Verifying database setup..."
-psql "$DATABASE_URL" -c "\dt" || echo "⚠️  Warning: Could not list tables"
+psql "$DATABASE_URL?sslmode=require" -c "\dt" || echo "⚠️  Warning: Could not list tables"
 
 echo "✨ Setup complete!"
 
