@@ -8,14 +8,13 @@ from app.config import settings
 from app.agents.sql_agent import sql_agent
 import logging
 import json
-import io
 import sys
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 import base64
-from io import BytesIO
+from io import BytesIO, StringIO
 from app.utils.serialization import serialize_for_json
 
 logger = logging.getLogger(__name__)
@@ -540,7 +539,7 @@ print(df.describe())"""
             
             # Capture stdout
             old_stdout = sys.stdout
-            sys.stdout = captured_output = io.StringIO()
+            sys.stdout = captured_output = StringIO()
             
             try:
                 # Execute the code

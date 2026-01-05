@@ -147,7 +147,7 @@ class RAGAgent:
                         "Si vous pensez que ces informations devraient être disponibles, les documents peuvent devoir être retéléchargés."
                     )
                 else:
-                state["answer"] = (
+                    state["answer"] = (
                     "I don't have any documents in my knowledge base to answer that question. "
                     "Please upload relevant documents using the Documents page, or try asking a different question. "
                     "If you believe this information should be available, the documents may need to be re-uploaded after fixing the Pinecone index dimension."
@@ -173,7 +173,7 @@ Question: {state['query']}
 
 Veuillez fournir une réponse utile basée sur le contexte ci-dessus. Répondez en français."""
             else:
-            user_prompt = f"""Context:
+                user_prompt = f"""Context:
 {context_text}
 
 Question: {state['query']}
