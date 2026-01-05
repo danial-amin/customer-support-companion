@@ -283,7 +283,7 @@ Basé sur les résultats de la requête ci-dessus, fournissez une réponse clair
 
 Utilisez les valeurs réelles des données des résultats pour répondre à la question. Soyez spécifique et incluez les chiffres lorsque cela est pertinent. Répondez en français."""
             else:
-            user_prompt = f"""Original User Question: {original_query}
+                user_prompt = f"""Original User Question: {original_query}
 
 SQL Query Executed: {sql_query}
 

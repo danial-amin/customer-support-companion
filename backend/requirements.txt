@@ -39,3 +39,7 @@ matplotlib==3.10.8
 Office365-REST-Python-Client==2.6.2
 PyPDF2==3.0.1
 python-docx==1.2.0
+
+# Development tools - linting and formatting
+ruff>=0.1.0
+flake8>=6.0.0

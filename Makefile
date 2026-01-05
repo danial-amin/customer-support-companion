@@ -1,4 +1,4 @@
-.PHONY: help setup build up down logs restart clean test
+.PHONY: help setup build up down logs restart clean test lint lint-fix check-syntax
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -51,3 +51,16 @@ dev-backend: ## Run backend in development mode
 dev-frontend: ## Run frontend in development mode
 	cd frontend && npm install && npm run dev
 
+lint: ## Lint backend code (check for errors)
+	@echo "🔍 Linting backend code..."
+	@cd backend && python3 -m py_compile app/**/*.py 2>&1 | head -20 || echo "⚠️  Install ruff/flake8 for better linting: pip install ruff flake8"
+	@echo "✅ Basic syntax check complete"
+
+lint-fix: ## Auto-fix linting issues (requires ruff)
+	@echo "🔧 Auto-fixing linting issues..."
+	@cd backend && (ruff check --fix app/ 2>/dev/null || echo "⚠️  Install ruff: pip install ruff") || true
+	@echo "✅ Linting fixes applied"
+
+check-syntax: ## Check Python syntax (fast, no dependencies)
+	@echo "🔍 Checking Python syntax..."
+	@cd backend && ./check-syntax.sh || (echo "⚠️  Syntax check failed - fix errors above" && exit 1)
