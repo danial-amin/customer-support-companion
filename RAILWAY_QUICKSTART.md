@@ -8,67 +8,79 @@
 2. Click "New Project" → "Deploy from GitHub repo"
 3. Select your repository
 
-### 2. Add PostgreSQL Database
+### 2. Add Railway PostgreSQL Database Service
 
-1. In Railway dashboard → "New Service"
-2. Select "Database" → "Add PostgreSQL"
-3. Railway will create the database automatically
+1. In Railway dashboard → Click **"+ New"**
+2. Select **"Database"** → **"Add PostgreSQL"**
+3. Railway automatically creates a managed PostgreSQL database
+4. ✅ Your database is ready!
 
 ### 3. Deploy Backend
 
-1. Railway auto-detects your `backend/Dockerfile`
-2. If not detected, configure:
+1. Click **"+ New"** → **"GitHub Repo"** → Select your repository
+2. Railway auto-detects your `backend/Dockerfile`
+3. If not detected, configure:
    - **Root Directory**: `backend`
    - **Dockerfile**: `Dockerfile`
 
-### 4. Set Environment Variables
+### 4. Connect Backend to Database
 
-In your backend service, add:
+In your backend service → **"Variables"** tab, add:
 
 ```bash
-# Required
+# Required - Use Railway's service reference!
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+
 OPENAI_API_KEY=sk-your-key-here
 SECRET_KEY=your-random-secret-key-here
-DATABASE_URL=${{Postgres.DATABASE_URL}}
 
 # Optional
 PINECONE_API_KEY=your-pinecone-key
 CORS_ORIGINS=["https://your-frontend.railway.app"]
 ```
 
-**Note**: `${{Postgres.DATABASE_URL}}` automatically connects to your PostgreSQL service.
+**💡 Tip**: Click "Reference" button and select your PostgreSQL service to auto-fill `${{Postgres.DATABASE_URL}}`
 
 ### 5. Initialize Database
 
-**Option A: Using Railway Web Terminal**
-1. Go to PostgreSQL service → "Data" tab
-2. Click "Query"
-3. Copy/paste contents of `backend/db/init_fuel_management.sql`
-4. Execute
+**Easiest Method: Railway Web Interface**
+1. Go to **PostgreSQL service** → **"Data"** tab
+2. Click **"Query"** button
+3. Open `backend/db/init_fuel_management.sql` locally
+4. Copy entire file contents
+5. Paste into Railway's SQL editor
+6. Click **"Run"** (or `Cmd+Enter` / `Ctrl+Enter`)
+7. ✅ Database initialized!
 
-**Option B: Using Railway CLI**
+**Alternative: Railway CLI**
 ```bash
 railway login
 railway link
 railway connect postgres
-# Then paste: \i backend/db/init_fuel_management.sql
+# Then paste SQL from init_fuel_management.sql
 ```
 
 ### 6. Generate Public URL
 
-1. Backend service → "Settings" → "Generate Domain"
+1. Backend service → **"Settings"** → **"Generate Domain"**
 2. Copy the URL (e.g., `https://backend-production.up.railway.app`)
 
 ### 7. Deploy Frontend (Optional)
 
-1. "New Service" → "GitHub Repo"
+1. **"+ New"** → **"GitHub Repo"** → Select repository
 2. Configure:
    - **Root Directory**: `frontend`
    - **Dockerfile**: `Dockerfile`
-3. Add environment variable:
+3. **Add Environment Variable (CRITICAL):**
    ```
-   VITE_API_URL=https://your-backend-url.railway.app
+   Variable Name: VITE_API_URL
+   Value: https://your-backend-url.railway.app
    ```
+   **⚠️ IMPORTANT**: This must be your **backend URL**, not the frontend URL!
+   
+   Example:
+   - If backend is: `https://backend-production-abc.up.railway.app`
+   - Set `VITE_API_URL` to: `https://backend-production-abc.up.railway.app`
 4. Generate domain for frontend
 
 ## ✅ Verify Deployment
@@ -94,7 +106,8 @@ railway connect postgres
 
 ## 📚 Full Documentation
 
-See [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md) for detailed instructions.
+- **Using Railway Database Service**: See [RAILWAY_DATABASE_DEPLOYMENT.md](./RAILWAY_DATABASE_DEPLOYMENT.md) for detailed guide
+- **General Deployment**: See [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md) for alternative methods
 
 ## 🆘 Need Help?
 

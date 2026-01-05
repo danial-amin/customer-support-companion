@@ -2,6 +2,14 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 
+# Accept build-time arguments for Vite environment variables
+ARG VITE_API_URL
+ARG VITE_API_KEY
+
+# Set as environment variables for the build process
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_KEY=$VITE_API_KEY
+
 # Copy package files
 COPY package*.json ./
 
@@ -11,7 +19,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build application
+# Build application (Vite will use VITE_API_URL from environment)
 RUN npm run build
 
 # Production stage

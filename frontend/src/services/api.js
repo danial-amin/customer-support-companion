@@ -1,8 +1,41 @@
 import axios from 'axios'
 
-// Use relative URL to work through nginx proxy in Docker, or absolute URL for local dev
-// In Docker, nginx proxies /api to backend:8000
-const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '')
+// API Base URL configuration:
+// - If VITE_API_URL is set (Railway/production), use it
+// - If localhost, use http://localhost:8000 (local dev)
+// - Otherwise, use empty string for relative URLs (Docker Compose with nginx proxy)
+// 
+// IMPORTANT: On Railway, you MUST set VITE_API_URL to your backend service URL
+// Example: VITE_API_URL=https://your-backend-production.up.railway.app
+// 
+// Note: Vite environment variables are embedded at BUILD TIME, not runtime.
+// If you change VITE_API_URL in Railway, you must rebuild the frontend service.
+
+// Get the API URL from environment (set at build time)
+const envApiUrl = import.meta.env.VITE_API_URL
+
+// Determine API base URL
+let API_BASE_URL
+if (envApiUrl && envApiUrl.trim() !== '') {
+  // Use the environment variable if set and not empty
+  API_BASE_URL = envApiUrl.trim()
+} else if (window.location.hostname === 'localhost') {
+  // Local development
+  API_BASE_URL = 'http://localhost:8000'
+} else {
+  // Docker Compose or Railway without VITE_API_URL (will use relative URLs)
+  API_BASE_URL = ''
+}
+
+// Debug logging (always log in development, optional in production)
+if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+  console.log('🔧 API Configuration:', {
+    'VITE_API_URL (env)': envApiUrl,
+    'API_BASE_URL (resolved)': API_BASE_URL,
+    'hostname': window.location.hostname,
+    'origin': window.location.origin
+  })
+}
 const API_KEY = import.meta.env.VITE_API_KEY || ''
 
 // Create axios instance with conditional headers

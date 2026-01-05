@@ -810,7 +810,7 @@ TÂCHE: Fournir un résumé d'analyse complet qui:
 
 Concentrez-vous sur les insights actionnables et les conclusions clés. Répondez en français."""
             else:
-                user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
+            user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
 
 PYTHON CODE THAT WAS EXECUTED:
 ```python

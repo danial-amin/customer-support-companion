@@ -42,12 +42,12 @@ function ChatInterface({ messages, onSendMessage, isLoading }) {
           "Quel est l'inventaire de carburant actuel?"
         ]
       } else {
-        return [
+      return [
           "How many fuel stations do we have?",
           "What fuel types are available?",
           "Show me recent fuel transactions",
           "What is the current fuel inventory?"
-        ]
+      ]
       }
     }
     
@@ -91,35 +91,35 @@ function ChatInterface({ messages, onSendMessage, isLoading }) {
         }
       } else if (content.includes('transaction') || content.includes('transaction')) {
         if (isFrench) {
-          return [
+        return [
             "Montrez les transactions par mois",
             "Quel est le coût total des transactions?",
             "Analysez les tendances de consommation",
             "Montrez les transactions récentes"
-          ]
+        ]
         } else {
-          return [
+        return [
             "Show transactions by month",
             "What is the total transaction cost?",
             "Analyze consumption trends",
             "Show recent transactions"
-          ]
+        ]
         }
       } else if (content.includes('carte') || content.includes('card') || content.includes('fuel card')) {
         if (isFrench) {
-          return [
+        return [
             "Combien de cartes carburant sont actives?",
             "Montrez l'utilisation des cartes",
             "Quelle carte a le plus d'utilisation?",
             "Montrez les limites de crédit"
-          ]
+        ]
         } else {
-          return [
+        return [
             "How many fuel cards are active?",
             "Show card usage",
             "Which card has the most usage?",
             "Show credit limits"
-          ]
+        ]
         }
       } else {
         // Generic follow-up questions
@@ -131,12 +131,12 @@ function ChatInterface({ messages, onSendMessage, isLoading }) {
             "Montrez-moi des informations connexes"
           ]
         } else {
-          return [
-            "Tell me more",
-            "Can you provide examples?",
-            "What are the details?",
-            "Show me related information"
-          ]
+        return [
+          "Tell me more",
+          "Can you provide examples?",
+          "What are the details?",
+          "Show me related information"
+        ]
         }
       }
     }

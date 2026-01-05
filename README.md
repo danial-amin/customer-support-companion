@@ -165,16 +165,17 @@ Body: {
 
 ### Railway Deployment (Recommended)
 
-Deploy to Railway in minutes with automatic HTTPS, database provisioning, and zero-config deployments.
+Deploy to Railway in minutes with automatic HTTPS, managed PostgreSQL database, and zero-config deployments.
 
 **Quick Start:**
 1. See [RAILWAY_QUICKSTART.md](./RAILWAY_QUICKSTART.md) for 5-minute deployment
-2. See [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md) for detailed guide
+2. See [RAILWAY_DATABASE_DEPLOYMENT.md](./RAILWAY_DATABASE_DEPLOYMENT.md) for detailed guide using Railway's managed PostgreSQL
 
 **Key Steps:**
 - Connect GitHub repo to Railway
-- Add PostgreSQL service
-- Set environment variables
+- Add Railway PostgreSQL database service (managed)
+- Deploy backend service
+- Connect backend to database using `${{Postgres.DATABASE_URL}}`
 - Initialize database with `backend/db/init_fuel_management.sql`
 - Generate public URLs
 
