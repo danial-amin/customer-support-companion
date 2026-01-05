@@ -101,6 +101,57 @@ DATABASE_URL=postgresql://postgres:abc123xyz@postgres.railway.internal:5432/cust
 
 ## Troubleshooting
 
+### Password Authentication Failed
+
+**Error**: `FATAL: password authentication failed for user "postgres"`
+
+**This means the password in your backend doesn't match the PostgreSQL service password.**
+
+**Fix:**
+
+1. **Go to PostgreSQL service** → **"Variables"** tab
+2. **Check `POSTGRES_PASSWORD` value** - Copy it exactly
+3. **Go to Backend service** → **"Variables"** tab
+4. **Update `DATABASE_URL`** with the correct password:
+   ```
+   DATABASE_URL=postgresql://postgres:EXACT_PASSWORD_FROM_POSTGRES@postgres.railway.internal:5432/customersupport
+   ```
+5. **Or update individual variables:**
+   ```
+   DB_PASSWORD=EXACT_PASSWORD_FROM_POSTGRES
+   ```
+6. **Redeploy backend** (Railway auto-redeploys on variable change)
+
+**💡 Common mistakes:**
+- Password has special characters that need URL encoding
+- Extra spaces in password
+- Password changed in PostgreSQL but not updated in backend
+- Using default password instead of the one you set
+
+**URL Encoding Special Characters:**
+If your password has special characters, encode them:
+- `@` → `%40`
+- `#` → `%23`
+- `$` → `%24`
+- `%` → `%25`
+- `&` → `%26`
+- `+` → `%2B`
+- `=` → `%3D`
+
+**Example:**
+- Password: `my@pass#123`
+- Encoded: `my%40pass%23123`
+- URL: `postgresql://postgres:my%40pass%23123@postgres.railway.internal:5432/customersupport`
+
+**Or use individual variables to avoid encoding:**
+```
+DB_HOST=postgres.railway.internal
+DB_PORT=5432
+DB_NAME=customersupport
+DB_USER=postgres
+DB_PASSWORD=my@pass#123  # No encoding needed!
+```
+
 ### Can't Connect?
 
 1. **Check service name matches:**
@@ -110,6 +161,7 @@ DATABASE_URL=postgresql://postgres:abc123xyz@postgres.railway.internal:5432/cust
 2. **Verify password matches:**
    - Check `POSTGRES_PASSWORD` in PostgreSQL service
    - Use exact same value in backend `DATABASE_URL`
+   - **Copy-paste the password** to avoid typos
 
 3. **Check port:**
    - Default is `5432`
@@ -118,6 +170,10 @@ DATABASE_URL=postgresql://postgres:abc123xyz@postgres.railway.internal:5432/cust
 4. **Verify database name:**
    - Check `POSTGRES_DB` in PostgreSQL service
    - Use exact same name in connection string
+
+5. **Check username:**
+   - Check `POSTGRES_USER` in PostgreSQL service
+   - Usually `postgres` but verify
 
 ### Service Reference Not Working?
 

@@ -99,7 +99,7 @@ I've already created `backend/db/Dockerfile.postgres` for you! It:
    DATABASE_URL=postgresql://postgres:your-password@postgres.railway.internal:5432/customersupport
    ```
    
-   **Or use individual variables:**
+   **Or use individual variables (Recommended - avoids URL encoding issues):**
    ```
    DB_HOST=postgres.railway.internal
    DB_PORT=5432
@@ -107,6 +107,11 @@ I've already created `backend/db/Dockerfile.postgres` for you! It:
    DB_USER=postgres
    DB_PASSWORD=your-password-from-postgres-service
    ```
+   
+   **💡 Important**: 
+   - Copy the password **exactly** from PostgreSQL service `POSTGRES_PASSWORD`
+   - If password has special characters, use individual variables (no URL encoding needed)
+   - Service name must match: if PostgreSQL service is named `postgres`, use `postgres.railway.internal`
    
    **💡 Important**: 
    - Use `postgres.railway.internal` as the host (Railway's internal DNS)
