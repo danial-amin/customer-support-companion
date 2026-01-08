@@ -44,7 +44,7 @@ function Navigation() {
           📄 Documents
         </Link>
       </nav>
-      <p className="subtitle">Système de gestion de carburant Total Energies - Powered by LangGraph with RAG, SQL, and Data Analysis</p>
+      <p className="subtitle">Système de gestion de carburant Total Energies - Alimenté par LangGraph avec RAG, SQL et analyse de données</p>
     </header>
   )
 }

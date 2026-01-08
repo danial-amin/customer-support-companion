@@ -26,7 +26,7 @@ function MessageInput({ onSendMessage, isLoading }) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+          placeholder="Tapez votre message... (Appuyez sur Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"
           disabled={isLoading}
           rows={1}
           className="message-input"

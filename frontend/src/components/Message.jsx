@@ -15,7 +15,7 @@ function Message({ message }) {
       <div className="message error">
         <div className="message-content">
           <div className="message-header">
-            <span className="message-type">⚠️ Error</span>
+            <span className="message-type">⚠️ Erreur</span>
             <span className="message-time">{formatTimestamp(message.timestamp)}</span>
           </div>
           <div className="message-text">{message.content}</div>
@@ -29,7 +29,7 @@ function Message({ message }) {
       <div className="message-content">
         <div className="message-header">
           <span className="message-type">
-            {message.type === 'user' ? '👤 You' : `🤖 ${message.agent || 'AI'}`}
+            {message.type === 'user' ? '👤 Vous' : `🤖 ${message.agent || 'IA'}`}
           </span>
           <span className="message-time">{formatTimestamp(message.timestamp)}</span>
         </div>
@@ -38,13 +38,13 @@ function Message({ message }) {
           <div className="message-metadata">
             {message.metadata.sql_query && (
               <details className="metadata-detail">
-                <summary>SQL Query</summary>
+                <summary>Requête SQL</summary>
                 <pre>{message.metadata.sql_query}</pre>
               </details>
             )}
             {(message.metadata.result || message.metadata.sql_result) && (
               <div className="sql-results-section">
-                <strong>Query Results:</strong>
+                <strong>Résultats de la requête:</strong>
                 <SQLResultsTable 
                   result={message.metadata.sql_result || { result: message.metadata.result }} 
                 />
@@ -52,27 +52,27 @@ function Message({ message }) {
             )}
             {message.metadata.python_code && (
               <details className="metadata-detail">
-                <summary>📝 Python Code Executed</summary>
+                <summary>📝 Code Python exécuté</summary>
                 <pre className="code-block">{message.metadata.python_code}</pre>
               </details>
             )}
             {(message.metadata.execution_result !== undefined && message.metadata.execution_result !== null) && (
               <details className="metadata-detail" open>
-                <summary>📊 Execution Output</summary>
+                <summary>📊 Sortie d'exécution</summary>
                 <div className="execution-result-container">
                   <pre className="execution-result">
-                    {message.metadata.execution_result || 'Code executed successfully (no output generated)'}
+                    {message.metadata.execution_result || 'Code exécuté avec succès (aucune sortie générée)'}
                   </pre>
                 </div>
               </details>
             )}
             {(message.metadata.visualization || message.metadata.plot_base64) && (
               <div className="visualization">
-                <strong>📈 Visualization:</strong>
+                <strong>📈 Visualisation:</strong>
                 <div className="visualization-container">
                   <img 
                     src={`data:image/png;base64,${message.metadata.visualization || message.metadata.plot_base64}`} 
-                    alt="Analysis visualization"
+                    alt="Visualisation de l'analyse"
                     className="visualization-image"
                     onError={(e) => {
                       console.error("Failed to load visualization image", {
@@ -88,7 +88,7 @@ function Message({ message }) {
                     }}
                   />
                   <div className="visualization-error" style={{display: 'none'}}>
-                    Failed to load visualization. The image data may be corrupted.
+                    Échec du chargement de la visualisation. Les données d'image peuvent être corrompues.
                     {message.metadata.visualization && (
                       <div style={{fontSize: '0.8em', marginTop: '0.5rem'}}>
                         Data length: {(message.metadata.visualization || '').length} chars
@@ -100,7 +100,7 @@ function Message({ message }) {
             )}
             {message.metadata.insights && message.metadata.insights.length > 0 && (
               <div className="insights">
-                <strong>Key Insights:</strong>
+                <strong>Insights clés:</strong>
                 <ul>
                   {message.metadata.insights.map((insight, idx) => (
                     <li key={idx}>{insight}</li>
@@ -138,7 +138,7 @@ function Message({ message }) {
                       )}
                       {source.score && (
                         <div className="source-score">
-                          Relevance: {(source.score * 100).toFixed(1)}%
+                          Pertinence: {(source.score * 100).toFixed(1)}%
                         </div>
                       )}
                     </li>

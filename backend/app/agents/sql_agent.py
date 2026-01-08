@@ -75,41 +75,41 @@ class SQLAgent:
         try:
             schema_json = json.dumps(state.get("schema", {}), indent=2)
             
-            system_prompt = """You are an expert SQL query translator for Total Energies fuel management system. 
-            Translate natural language questions into SQL queries for the fuel management database.
-            The database contains tables for fuel stations, fuel types, vehicles, fuel cards, fuel transactions, 
-            fuel inventory, fuel refills, and fuel consumption reports.
-            Only generate SELECT queries. Never generate INSERT, UPDATE, DELETE, DROP, or ALTER statements.
-            Use the provided database schema to construct accurate queries.
+            system_prompt = """Vous êtes un expert en traduction de requêtes SQL pour le système de gestion de carburant Total Energies. 
+            Traduisez les questions en langage naturel en requêtes SQL pour la base de données de gestion de carburant.
+            La base de données contient des tables pour les stations-service, les types de carburant, les véhicules, les cartes carburant, les transactions de carburant, 
+            l'inventaire de carburant, les ravitaillements, et les rapports de consommation de carburant.
+            Générez uniquement des requêtes SELECT. Ne générez jamais d'instructions INSERT, UPDATE, DELETE, DROP ou ALTER.
+            Utilisez le schéma de base de données fourni pour construire des requêtes précises.
             
-            CRITICAL RULES FOR AGGREGATION QUERIES:
-            - When asked "which station has the most sales", "top station", "highest sales", etc., you MUST:
-              1. JOIN fuel_transactions with fuel_stations to get station names
-              2. Use SUM() or COUNT() to aggregate sales/transactions
-              3. Use GROUP BY to group by station
-              4. Use ORDER BY ... DESC to sort by sales descending
-              5. Use LIMIT 1 if asking for "the most" or "top 1"
+            RÈGLES CRITIQUES POUR LES REQUÊTES D'AGRÉGATION:
+            - Lorsqu'on demande "quelle station a le plus de ventes", "meilleure station", "ventes les plus élevées", etc., vous DEVEZ:
+              1. JOIN fuel_transactions avec fuel_stations pour obtenir les noms des stations
+              2. Utiliser SUM() ou COUNT() pour agréger les ventes/transactions
+              3. Utiliser GROUP BY pour grouper par station
+              4. Utiliser ORDER BY ... DESC pour trier par ventes décroissantes
+              5. Utiliser LIMIT 1 si on demande "le plus" ou "top 1"
             
-            - When asked "how many", "count", "total", "sum", "average", you MUST use aggregation functions:
-              * COUNT(*) for counting records
-              * SUM(column) for totals
-              * AVG(column) for averages
-              * GROUP BY when grouping by categories
+            - Lorsqu'on demande "combien", "compter", "total", "somme", "moyenne", vous DEVEZ utiliser des fonctions d'agrégation:
+              * COUNT(*) pour compter les enregistrements
+              * SUM(column) pour les totaux
+              * AVG(column) pour les moyennes
+              * GROUP BY lors du regroupement par catégories
             
-            - When asked "top N", "highest", "lowest", "best", "worst", you MUST:
-              * Use ORDER BY with DESC (for highest/best) or ASC (for lowest/worst)
-              * Use LIMIT N to get top N results
+            - Lorsqu'on demande "top N", "le plus élevé", "le plus bas", "meilleur", "pire", vous DEVEZ:
+              * Utiliser ORDER BY avec DESC (pour le plus élevé/meilleur) ou ASC (pour le plus bas/pire)
+              * Utiliser LIMIT N pour obtenir les N meilleurs résultats
             
             IMPORTANT: 
-            - Always return a valid SQL SELECT query, even if the user asks for charts, graphs, or visualizations
-            - For visualization requests, generate a SQL query that retrieves the data needed for the visualization
-            - Return ONLY the SQL query, no explanations, no markdown formatting, no natural language responses
-            - If you cannot create a query, return a simple query like "SELECT 1" and set an error instead
-            - Understand fuel management terminology: fuel stations, fuel types, vehicles, fuel cards, transactions, inventory
+            - Retournez toujours une requête SQL SELECT valide, même si l'utilisateur demande des graphiques ou visualisations
+            - Pour les demandes de visualisation, générez une requête SQL qui récupère les données nécessaires pour la visualisation
+            - Retournez UNIQUEMENT la requête SQL, pas d'explications, pas de formatage markdown, pas de réponses en langage naturel
+            - Si vous ne pouvez pas créer une requête, retournez une requête simple comme "SELECT 1" et définissez une erreur à la place
+            - Comprenez la terminologie de gestion de carburant: stations-service, types de carburant, véhicules, cartes carburant, transactions, inventaire
             
-            EXAMPLE QUERIES:
+            EXEMPLES DE REQUÊTES:
             
-            Example 1 - "Which station has the most sales?":
+            Exemple 1 - "Quelle station a le plus de ventes?":
             SELECT fs.name, fs.station_code, SUM(ft.total_amount) as total_sales
             FROM fuel_transactions ft
             JOIN fuel_stations fs ON ft.station_id = fs.id
@@ -117,7 +117,7 @@ class SQLAgent:
             ORDER BY total_sales DESC
             LIMIT 1;
             
-            Example 2 - "Top 5 stations by sales":
+            Exemple 2 - "Top 5 stations par ventes":
             SELECT fs.name, SUM(ft.total_amount) as total_sales
             FROM fuel_transactions ft
             JOIN fuel_stations fs ON ft.station_id = fs.id
@@ -125,31 +125,31 @@ class SQLAgent:
             ORDER BY total_sales DESC
             LIMIT 5;
             
-            Example 3 - "How many transactions per station?":
+            Exemple 3 - "Combien de transactions par station?":
             SELECT fs.name, COUNT(ft.id) as transaction_count
             FROM fuel_stations fs
             LEFT JOIN fuel_transactions ft ON fs.id = ft.station_id
             GROUP BY fs.id, fs.name
             ORDER BY transaction_count DESC;
             
-            Example 4 - "Total fuel sold by station":
+            Exemple 4 - "Total de carburant vendu par station":
             SELECT fs.name, SUM(ft.quantity_liters) as total_liters
             FROM fuel_transactions ft
             JOIN fuel_stations fs ON ft.station_id = fs.id
             GROUP BY fs.id, fs.name
             ORDER BY total_liters DESC;"""
             
-            user_prompt = f"""Database Schema:
+            user_prompt = f"""Schéma de base de données:
 {schema_json}
 
-User Question: {state['query']}
+Question de l'utilisateur: {state['query']}
 
-Generate a SQL SELECT query to retrieve the data needed to answer this question. 
-- If the question asks about "most", "top", "highest", "best", use GROUP BY, aggregation functions (SUM, COUNT), and ORDER BY DESC with LIMIT
-- If the question asks about "how many", "count", "total", use COUNT(*) or SUM() with appropriate GROUP BY
-- Always JOIN tables when you need data from multiple tables (e.g., station names from fuel_stations, transaction data from fuel_transactions)
-- Even if the question asks for a chart or graph, generate a SQL query that gets the underlying data
-Return ONLY the SQL query, nothing else."""
+Générez une requête SQL SELECT pour récupérer les données nécessaires pour répondre à cette question. 
+- Si la question demande "le plus", "top", "le plus élevé", "meilleur", utilisez GROUP BY, fonctions d'agrégation (SUM, COUNT), et ORDER BY DESC avec LIMIT
+- Si la question demande "combien", "compter", "total", utilisez COUNT(*) ou SUM() avec GROUP BY approprié
+- Toujours JOIN les tables lorsque vous avez besoin de données de plusieurs tables (par ex., noms de stations de fuel_stations, données de transactions de fuel_transactions)
+- Même si la question demande un graphique, générez une requête SQL qui récupère les données sous-jacentes
+Retournez UNIQUEMENT la requête SQL, rien d'autre."""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -180,7 +180,7 @@ Return ONLY the SQL query, nothing else."""
                     logger.info(f"Extracted SQL from response: {sql_query[:100]}")
                 else:
                     # If no SQL found, set an error and use a placeholder query
-                    state["error"] = "Could not generate a valid SQL query. The request may require data analysis or visualization tools."
+                    state["error"] = "Impossible de générer une requête SQL valide. La demande peut nécessiter des outils d'analyse de données ou de visualisation."
                     state["sql_query"] = "SELECT 1 as error"
                     logger.error(f"Failed to generate SQL query from: {sql_query[:100]}")
                     return state
@@ -220,11 +220,11 @@ Return ONLY the SQL query, nothing else."""
         """Generate a natural language answer from SQL results."""
         try:
             if state.get("error"):
-                state["answer"] = f"Error: {state['error']}"
+                state["answer"] = f"Erreur: {state['error']}"
                 return state
             
             if not state.get("result"):
-                state["answer"] = "No results found."
+                state["answer"] = "Aucun résultat trouvé."
                 return state
             
             result = state["result"]
@@ -235,7 +235,7 @@ Return ONLY the SQL query, nothing else."""
             sql_query = state.get("sql_query", "")
             
             if row_count == 0:
-                state["answer"] = "The query executed successfully, but no matching records were found."
+                state["answer"] = "La requête a été exécutée avec succès, mais aucun enregistrement correspondant n'a été trouvé."
                 return state
             
             # Format the results for the LLM
@@ -247,32 +247,27 @@ Return ONLY the SQL query, nothing else."""
                 "total_rows": row_count
             }, indent=2)
             
-            system_prompt = """You are a helpful fuel management data analyst for Total Energies. Your job is to interpret SQL query results from the fuel management database and provide a clear, natural language answer to the user's question.
+            system_prompt = """Vous êtes un analyste de données utile pour la gestion de carburant Total Energies. Votre travail est d'interpréter les résultats de requêtes SQL de la base de données de gestion de carburant et de fournir une réponse claire en langage naturel à la question de l'utilisateur.
 
-Your response should:
-1. Directly answer the user's question using the actual data from the query results
-2. Include specific numbers, values, and facts from the results (fuel quantities, prices, station names, vehicle registrations, etc.)
-3. Be concise and clear
-4. If the query returned multiple rows, summarize the key findings - especially for aggregation queries (top stations, highest sales, etc.)
-5. If the query is a COUNT or aggregation, state the exact number/value
-6. For "which station has the most sales" type questions, identify the station name and the sales amount/value from the results
-7. Do not just say "the query returned X rows" - actually use the data to answer the question
-8. Always respond in the same language as the user's question (English or French)
+Votre réponse doit:
+1. Répondre directement à la question de l'utilisateur en utilisant les données réelles des résultats de la requête
+2. Inclure des chiffres, valeurs et faits spécifiques des résultats (quantités de carburant, prix, noms de stations, immatriculations de véhicules, etc.)
+3. Être concise et claire
+4. Si la requête a retourné plusieurs lignes, résumez les conclusions clés - surtout pour les requêtes d'agrégation (meilleures stations, ventes les plus élevées, etc.)
+5. Si la requête est un COUNT ou agrégation, indiquez le nombre/valeur exact
+6. Pour les questions de type "quelle station a le plus de ventes", identifiez le nom de la station et le montant/valeur des ventes à partir des résultats
+7. Ne dites pas simplement "la requête a retourné X lignes" - utilisez réellement les données pour répondre à la question
+8. Répondez toujours en français
 
-CRITICAL: When the user asks "which station has the most sales" or similar ranking questions:
-- Look at the query results for station names and sales amounts
-- Identify the station with the highest sales value
-- State clearly: "Station [name] has the most sales with [amount]" or similar
-- If the query results show aggregated data (total_sales, total_amount, etc.), use those values
+CRITIQUE: Lorsque l'utilisateur demande "quelle station a le plus de ventes" ou des questions de classement similaires:
+- Regardez les résultats de la requête pour les noms de stations et les montants des ventes
+- Identifiez la station avec la valeur de ventes la plus élevée
+- Énoncez clairement: "La station [nom] a le plus de ventes avec [montant]" ou similaire
+- Si les résultats de la requête montrent des données agrégées (total_sales, total_amount, etc.), utilisez ces valeurs
 
-Write in a natural, conversational tone. Use fuel management terminology appropriately."""
+Écrivez dans un ton naturel et conversationnel. Utilisez la terminologie de gestion de carburant de manière appropriée."""
             
-            # Detect language from query
-            query_lower = original_query.lower()
-            is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels', 'montre', 'liste', 'donne'])
-            
-            if is_french:
-                user_prompt = f"""Question originale de l'utilisateur: {original_query}
+            user_prompt = f"""Question originale de l'utilisateur: {original_query}
 
 Requête SQL exécutée: {sql_query}
 
@@ -282,17 +277,6 @@ Résultats de la requête:
 Basé sur les résultats de la requête ci-dessus, fournissez une réponse claire et directe à la question de l'utilisateur: "{original_query}"
 
 Utilisez les valeurs réelles des données des résultats pour répondre à la question. Soyez spécifique et incluez les chiffres lorsque cela est pertinent. Répondez en français."""
-            else:
-                user_prompt = f"""Original User Question: {original_query}
-
-SQL Query Executed: {sql_query}
-
-Query Results:
-{results_text}
-
-Based on the query results above, provide a clear, direct answer to the user's question: "{original_query}"
-
-Use the actual data values from the results to answer the question. Be specific and include numbers where relevant. Respond in the same language as the question."""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -308,9 +292,9 @@ Use the actual data values from the results to answer the question. Be specific 
             # Fallback to basic answer if LLM fails
             if state.get("result"):
                 row_count = state["result"].get("row_count", 0)
-                state["answer"] = f"Query executed successfully and returned {row_count} row(s)."
+                state["answer"] = f"Requête exécutée avec succès et a retourné {row_count} ligne(s)."
             else:
-                state["answer"] = "Query executed, but I encountered an error while formatting the answer."
+                state["answer"] = "Requête exécutée, mais j'ai rencontré une erreur lors du formatage de la réponse."
         
         return state
     

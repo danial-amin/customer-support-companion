@@ -2,16 +2,16 @@ import React from 'react'
 import './AgentSelector.css'
 
 const agents = [
-  { value: 'auto', label: '🔄 Auto', description: 'Automatically route to best agent' },
-  { value: 'rag', label: '📚 RAG', description: 'Retrieval Augmented Generation' },
-  { value: 'sql', label: '🗄️ SQL', description: 'Natural Language to SQL' },
-  { value: 'analyzer', label: '📊 Analyzer', description: 'Data Analysis & Insights' }
+  { value: 'auto', label: '🔄 Auto', description: 'Routage automatique vers le meilleur agent' },
+  { value: 'rag', label: '📚 RAG', description: 'Génération augmentée par récupération' },
+  { value: 'sql', label: '🗄️ SQL', description: 'Langage naturel vers SQL' },
+  { value: 'analyzer', label: '📊 Analyseur', description: 'Analyse de données et insights' }
 ]
 
 function AgentSelector({ selectedAgent, onSelectAgent }) {
   return (
     <div className="agent-selector">
-      <h3>Select Agent</h3>
+      <h3>Sélectionner un agent</h3>
       <div className="agent-list">
         {agents.map(agent => (
           <button

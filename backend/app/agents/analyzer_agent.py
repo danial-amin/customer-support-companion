@@ -83,19 +83,19 @@ class AnalyzerAgent:
             
             # Check if SQL agent returned an error
             if sql_result.get("error"):
-                error_msg = sql_result.get("error", "Unknown error")
+                error_msg = sql_result.get("error", "Erreur inconnue")
                 # Check if the error indicates the SQL agent couldn't generate a query
-                if "Could not generate a valid SQL query" in error_msg or "not capable" in error_msg.lower():
-                    state["error"] = f"Cannot analyze this request: {error_msg}. Please rephrase your query to ask for data that can be retrieved from the database."
+                if "Could not generate a valid SQL query" in error_msg or "not capable" in error_msg.lower() or "Impossible de générer" in error_msg:
+                    state["error"] = f"Impossible d'analyser cette demande: {error_msg}. Veuillez reformuler votre requête pour demander des données qui peuvent être récupérées de la base de données."
                 else:
-                    state["error"] = f"Failed to fetch data for analysis: {error_msg}. Please ensure your query references valid database tables and columns."
+                    state["error"] = f"Échec de la récupération des données pour l'analyse: {error_msg}. Veuillez vous assurer que votre requête fait référence à des tables et colonnes de base de données valides."
                 logger.warning(f"SQL agent failed: {error_msg}")
                 return state
             
             # Validate that we got a proper SQL query
             sql_query = sql_result.get("sql_query", "")
             if not sql_query or not sql_query.upper().startswith("SELECT"):
-                state["error"] = "The SQL agent did not generate a valid SQL query. Please rephrase your request to ask for data from the database."
+                state["error"] = "L'agent SQL n'a pas généré une requête SQL valide. Veuillez reformuler votre demande pour demander des données de la base de données."
                 logger.warning(f"Invalid SQL query from SQL agent: {sql_query[:100]}")
                 return state
             
@@ -103,13 +103,13 @@ class AnalyzerAgent:
                 data = sql_result["result"]
                 rows = data.get("rows", [])
                 if not rows or len(rows) == 0:
-                    state["error"] = "No data found to analyze. The query returned empty results."
+                    state["error"] = "Aucune donnée trouvée pour l'analyse. La requête a retourné des résultats vides."
                     return state
                 state["data"] = data
                 state["sql_query"] = sql_query
                 logger.info(f"Retrieved {len(rows)} rows for analysis")
             else:
-                state["error"] = "No data retrieved from SQL query. Please check your query and try again."
+                state["error"] = "Aucune donnée récupérée de la requête SQL. Veuillez vérifier votre requête et réessayer."
             
         except Exception as e:
             logger.error(f"Error getting data: {e}", exc_info=True)
@@ -128,7 +128,7 @@ class AnalyzerAgent:
             columns = data.get("columns", [])
             
             if not rows or not columns:
-                state["error"] = "No data rows to analyze"
+                state["error"] = "Aucune ligne de données à analyser"
                 return state
             
             # Convert to DataFrame format for code generation
@@ -141,59 +141,59 @@ class AnalyzerAgent:
             visualization_keywords = ['chart', 'graph', 'plot', 'visualize', 'visualization', 'bar', 'line', 'histogram', 'pie', 'scatter']
             needs_visualization = any(keyword in query_lower for keyword in visualization_keywords)
             
-            system_prompt = """You are an expert fuel management data analyst for Total Energies. Your job is to understand the user's analysis request for fuel management data and generate Python code to perform that analysis.
+            system_prompt = """Vous êtes un expert analyste de données pour la gestion de carburant Total Energies. Votre travail est de comprendre la demande d'analyse de l'utilisateur pour les données de gestion de carburant et de générer du code Python pour effectuer cette analyse.
 
-UNDERSTANDING THE REQUEST:
-- Carefully read the user's query to understand what analysis they want for fuel management data
-- Common analysis types for fuel management:
-  * Statistical summaries: "show statistics", "describe the data", "summary" (for fuel transactions, consumption, inventory)
-  * Aggregations: "total", "average", "count", "sum", "group by" (fuel consumption, costs, transactions by station/vehicle)
-  * Comparisons: "compare", "difference", "which is higher" (fuel costs, consumption between stations/vehicles/departments)
-  * Trends: "over time", "by month", "trend" (fuel consumption trends, price trends, transaction volume)
-  * Distributions: "distribution", "histogram", "frequency" (fuel inventory levels, transaction amounts)
-  * Visualizations: "chart", "graph", "plot", "visualize", "bar chart", "line chart" (fuel consumption charts, station performance)
-  * Rankings: "top", "bottom", "highest", "lowest", "best", "worst" (top fuel stations, most fuel-efficient vehicles)
-  * Calculations: "percentage", "ratio", "growth", "change" (fuel efficiency, cost per kilometer, inventory utilization)
+COMPRENDRE LA DEMANDE:
+- Lisez attentivement la requête de l'utilisateur pour comprendre quelle analyse il souhaite pour les données de gestion de carburant
+- Types d'analyse courants pour la gestion de carburant:
+  * Résumés statistiques: "montrer les statistiques", "décrire les données", "résumé" (pour transactions de carburant, consommation, inventaire)
+  * Agrégations: "total", "moyenne", "compter", "somme", "grouper par" (consommation de carburant, coûts, transactions par station/véhicule)
+  * Comparaisons: "comparer", "différence", "lequel est plus élevé" (coûts de carburant, consommation entre stations/véhicules/départements)
+  * Tendances: "au fil du temps", "par mois", "tendance" (tendances de consommation de carburant, tendances de prix, volume de transactions)
+  * Distributions: "distribution", "histogramme", "fréquence" (niveaux d'inventaire de carburant, montants de transactions)
+  * Visualisations: "graphique", "diagramme", "tracer", "visualiser", "graphique en barres", "graphique linéaire" (graphiques de consommation de carburant, performance des stations)
+  * Classements: "top", "bas", "le plus élevé", "le plus bas", "meilleur", "pire" (meilleures stations-service, véhicules les plus économes en carburant)
+  * Calculs: "pourcentage", "ratio", "croissance", "changement" (efficacité énergétique, coût par kilomètre, utilisation de l'inventaire)
 
-CODE REQUIREMENTS:
-1. ALWAYS start by creating a DataFrame: df = pd.DataFrame(data_rows)
-2. Understand the data structure - check columns and data types
-3. Perform the requested analysis
-4. ALWAYS use print() statements to show ALL results, statistics, and findings
-5. **IF THE USER ASKS FOR A CHART, GRAPH, OR PLOT, YOU MUST CREATE ONE**
+EXIGENCES DU CODE:
+1. TOUJOURS commencer par créer un DataFrame: df = pd.DataFrame(data_rows)
+2. Comprendre la structure des données - vérifier les colonnes et types de données
+3. Effectuer l'analyse demandée
+4. TOUJOURS utiliser des instructions print() pour afficher TOUS les résultats, statistiques et conclusions
+5. **SI L'UTILISATEUR DEMANDE UN GRAPHIQUE, DIAGRAMME OU TRACE, VOUS DEVEZ EN CRÉER UN**
 
-CRITICAL RULES FOR VISUALIZATIONS:
-- When visualization is requested, you MUST create a matplotlib plot
-- DO NOT use plt.show() - it will cause errors
-- DO NOT use plt.savefig() - the plot will be captured automatically
-- DO NOT use plt.close() - the plot needs to remain open to be captured
-- ALWAYS create the plot: plt.figure(figsize=(10, 6))
-- Then create the plot: plt.bar(), plt.plot(), plt.hist(), plt.scatter(), etc.
-- ALWAYS add labels: plt.xlabel(), plt.ylabel(), plt.title()
-- The plot will be automatically captured after your code runs
-- If user asks for "graph" or "chart", create an appropriate visualization based on the data
+RÈGLES CRITIQUES POUR LES VISUALISATIONS:
+- Lorsqu'une visualisation est demandée, vous DEVEZ créer un graphique matplotlib
+- N'utilisez PAS plt.show() - cela causera des erreurs
+- N'utilisez PAS plt.savefig() - le graphique sera capturé automatiquement
+- N'utilisez PAS plt.close() - le graphique doit rester ouvert pour être capturé
+- TOUJOURS créer le graphique: plt.figure(figsize=(10, 6))
+- Ensuite créer le graphique: plt.bar(), plt.plot(), plt.hist(), plt.scatter(), etc.
+- TOUJOURS ajouter des étiquettes: plt.xlabel(), plt.ylabel(), plt.title()
+- Le graphique sera automatiquement capturé après l'exécution de votre code
+- Si l'utilisateur demande un "graphique" ou "diagramme", créez une visualisation appropriée basée sur les données
 
-IMPORTANT OUTPUT RULES:
-- ALWAYS print results, statistics, and findings using print() statements
-- Print DataFrame info, statistics, aggregations, and any computed values
-- Examples:
+RÈGLES IMPORTANTES POUR LA SORTIE:
+- TOUJOURS imprimer les résultats, statistiques et conclusions en utilisant des instructions print()
+- Imprimer les infos DataFrame, statistiques, agrégations et toutes valeurs calculées
+- Exemples:
   * print(f"Total: {df['column'].sum()}")
-  * print(f"Average: {df['column'].mean()}")
+  * print(f"Moyenne: {df['column'].mean()}")
   * print(df.describe())
   * print(df.groupby('column').sum())
   * print(f"Top 5: {df.nlargest(5, 'column')}")
 
-AVAILABLE LIBRARIES:
+BIBLIOTHÈQUES DISPONIBLES:
 - pandas (as pd)
 - matplotlib.pyplot (as plt)
 - json
-- Standard Python functions: len, sum, max, min, etc.
+- Fonctions Python standard: len, sum, max, min, etc.
 
-DATA AVAILABLE:
-- data_rows: list of dictionaries (the actual data)
-- data_columns: list of column names
+DONNÉES DISPONIBLES:
+- data_rows: liste de dictionnaires (les données réelles)
+- data_columns: liste des noms de colonnes
 
-Return ONLY the Python code, no explanations or markdown. The code will be executed directly."""
+Retournez UNIQUEMENT le code Python, pas d'explications ou de markdown. Le code sera exécuté directement."""
             
             # Build visualization instruction based on whether it's needed
             viz_instruction = ""
@@ -229,84 +229,84 @@ plt.ylabel('Total')
 plt.title('Total by Category')
 """
             
-            user_prompt = f"""USER'S ANALYSIS REQUEST: "{state['query']}"
+            user_prompt = f"""DEMANDE D'ANALYSE DE L'UTILISATEUR: "{state['query']}"
 
-DATA INFORMATION:
-- Columns available: {columns}
-- Total rows: {len(rows)}
-- Sample data (first 10 rows):
+INFORMATIONS SUR LES DONNÉES:
+- Colonnes disponibles: {columns}
+- Total de lignes: {len(rows)}
+- Données d'échantillon (10 premières lignes):
 {data_sample}
 
-TASK: Generate Python code to perform the analysis requested by the user.
+TÂCHE: Générez du code Python pour effectuer l'analyse demandée par l'utilisateur.
 
-CRITICAL FIRST STEP - YOU MUST DO THIS:
-1. ALWAYS start your code with: df = pd.DataFrame(data_rows)
-   - This creates the DataFrame from the data_rows variable
-   - DO NOT skip this step, even if you think it's obvious
-   - DO NOT assume df already exists
-   - This MUST be the first line of your code
+PREMIÈRE ÉTAPE CRITIQUE - VOUS DEVEZ FAIRE CECI:
+1. TOUJOURS commencer votre code par: df = pd.DataFrame(data_rows)
+   - Cela crée le DataFrame à partir de la variable data_rows
+   - NE PAS sauter cette étape, même si vous pensez que c'est évident
+   - NE PAS supposer que df existe déjà
+   - Ceci DOIT être la première ligne de votre code
 {viz_instruction}
-STEP-BY-STEP INSTRUCTIONS:
-1. FIRST LINE MUST BE: df = pd.DataFrame(data_rows)
+INSTRUCTIONS ÉTAPE PAR ÉTAPE:
+1. LA PREMIÈRE LIGNE DOIT ÊTRE: df = pd.DataFrame(data_rows)
 
-2. Understand what the user wants:
-   - Read the user's request carefully
-   - Identify what analysis they need (statistics, aggregations, comparisons, visualizations, etc.)
-   - Map the request to appropriate pandas/matplotlib operations
+2. Comprendre ce que l'utilisateur veut:
+   - Lisez attentivement la demande de l'utilisateur
+   - Identifiez quelle analyse il a besoin (statistiques, agrégations, comparaisons, visualisations, etc.)
+   - Mappez la demande aux opérations pandas/matplotlib appropriées
 
-3. Perform the analysis:
-   - Use appropriate pandas methods (groupby, agg, describe, value_counts, etc.)
-   - Calculate requested metrics (sum, mean, count, percentage, etc.)
-   - If comparing or ranking, use appropriate sorting/filtering
+3. Effectuer l'analyse:
+   - Utilisez les méthodes pandas appropriées (groupby, agg, describe, value_counts, etc.)
+   - Calculez les métriques demandées (somme, moyenne, comptage, pourcentage, etc.)
+   - Si comparaison ou classement, utilisez le tri/filtrage approprié
 
-4. Create visualization if requested:
-   - If user mentions: "chart", "graph", "plot", "visualize", "bar", "line", "histogram", etc.
-   - YOU MUST create a plot:
+4. Créer une visualisation si demandée:
+   - Si l'utilisateur mentionne: "graphique", "diagramme", "tracer", "visualiser", "barre", "ligne", "histogramme", etc.
+   - VOUS DEVEZ créer un graphique:
      * plt.figure(figsize=(10, 6))
-     * Choose plot type: plt.bar() for categories, plt.plot() for trends, plt.hist() for distributions
-     * Add labels: plt.xlabel(), plt.ylabel(), plt.title()
-     * DO NOT use plt.show(), plt.close(), or plt.savefig()
+     * Choisissez le type de graphique: plt.bar() pour catégories, plt.plot() pour tendances, plt.hist() pour distributions
+     * Ajoutez des étiquettes: plt.xlabel(), plt.ylabel(), plt.title()
+     * N'utilisez PAS plt.show(), plt.close(), ou plt.savefig()
 
-5. Print all results:
-   - Print summary statistics
-   - Print aggregations
-   - Print key findings
-   - Print any calculated metrics
-   - Use print() for everything important
+5. Imprimer tous les résultats:
+   - Imprimez les statistiques récapitulatives
+   - Imprimez les agrégations
+   - Imprimez les conclusions clés
+   - Imprimez toutes les métriques calculées
+   - Utilisez print() pour tout ce qui est important
 
-EXAMPLES:
+EXEMPLES:
 
-Example 1 - Statistics:
+Exemple 1 - Statistiques:
 df = pd.DataFrame(data_rows)
-print("Summary Statistics:")
+print("Statistiques récapitulatives:")
 print(df.describe())
-print(f"Total rows: {len(df)}")
+print(f"Total de lignes: {len(df)}")
 
-Example 2 - Aggregation:
+Exemple 2 - Agrégation:
 df = pd.DataFrame(data_rows)
 result = df.groupby('category')['amount'].sum()
-print("Total by category:")
+print("Total par catégorie:")
 print(result)
 
-Example 3 - Bar Chart:
+Exemple 3 - Graphique en barres:
 df = pd.DataFrame(data_rows)
 category_totals = df.groupby('category')['amount'].sum()
 plt.figure(figsize=(10, 6))
 plt.bar(category_totals.index, category_totals.values)
-plt.xlabel('Category')
-plt.ylabel('Total Amount')
-plt.title('Total Amount by Category')
-print("Category totals:")
+plt.xlabel('Catégorie')
+plt.ylabel('Montant total')
+plt.title('Montant total par catégorie')
+print("Totaux par catégorie:")
 print(category_totals)
 
-Example 4 - Top N:
+Exemple 4 - Top N:
 df = pd.DataFrame(data_rows)
 top_items = df.nlargest(5, 'value')
-print("Top 5 items:")
+print("Top 5 éléments:")
 print(top_items)
 
-Now generate the code for the user's specific request: "{state['query']}"
-Remember: Print all results and create visualization if requested!"""
+Maintenant générez le code pour la demande spécifique de l'utilisateur: "{state['query']}"
+Rappelez-vous: Imprimez tous les résultats et créez une visualisation si demandée!"""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -328,7 +328,7 @@ Remember: Print all results and create visualization if requested!"""
             # Validate code is not empty
             if not code or len(code.strip()) == 0:
                 logger.error("Generated code is empty")
-                state["error"] = "Generated code is empty. Please try rephrasing your request."
+                state["error"] = "Le code généré est vide. Veuillez reformuler votre demande."
                 state["python_code"] = ""
                 return state
             
@@ -471,11 +471,11 @@ print(df.describe())"""
                     state["python_code"] = fallback_code
                     logger.info("Using fallback code for analysis")
                 else:
-                    state["error"] = f"Error generating code: {str(e)}. Please try rephrasing your request."
+                    state["error"] = f"Erreur lors de la génération du code: {str(e)}. Veuillez reformuler votre demande."
                     state["python_code"] = ""
             except Exception as recovery_error:
                 logger.error(f"Error during recovery: {recovery_error}")
-                state["error"] = f"Error generating code: {str(e)}. Please try rephrasing your request."
+                state["error"] = f"Erreur lors de la génération du code: {str(e)}. Veuillez reformuler votre demande."
                 state["python_code"] = ""
         
         return state
@@ -733,7 +733,7 @@ print(df.describe())"""
                                 break
                 
                 # Always set execution_result, even if empty
-                state["execution_result"] = output.strip() if output.strip() else "Code executed successfully. Check visualization if generated."
+                state["execution_result"] = output.strip() if output.strip() else "Code exécuté avec succès. Vérifiez la visualisation si générée."
                 
             finally:
                 sys.stdout = old_stdout
@@ -742,7 +742,7 @@ print(df.describe())"""
             
         except Exception as e:
             logger.error(f"Error executing code: {e}")
-            state["error"] = f"Code execution error: {str(e)}"
+            state["error"] = f"Erreur d'exécution du code: {str(e)}"
             state["execution_result"] = ""
         
         return state
@@ -752,9 +752,9 @@ print(df.describe())"""
         try:
             if state.get("error"):
                 # If there's an error, still try to provide a helpful response
-                error_msg = state.get("error", "Unknown error")
-                state["analysis"] = f"I encountered an error while analyzing the data: {error_msg}. Please check your query and try again."
-                state["insights"] = ["Error occurred during analysis"]
+                error_msg = state.get("error", "Erreur inconnue")
+                state["analysis"] = f"J'ai rencontré une erreur lors de l'analyse des données: {error_msg}. Veuillez vérifier votre requête et réessayer."
+                state["insights"] = ["Erreur survenue pendant l'analyse"]
                 return state
             
             execution_result = state.get("execution_result", "")
@@ -764,29 +764,24 @@ print(df.describe())"""
             
             # If execution result is empty or minimal, provide a helpful message
             if not execution_result or len(execution_result.strip()) < 10:
-                state["analysis"] = "The analysis completed, but no significant results were generated. Please check if your query is specific enough or if the data contains the information you're looking for."
-                state["insights"] = ["Analysis completed with minimal output"]
+                state["analysis"] = "L'analyse est terminée, mais aucun résultat significatif n'a été généré. Veuillez vérifier si votre requête est suffisamment spécifique ou si les données contiennent les informations que vous recherchez."
+                state["insights"] = ["Analyse terminée avec sortie minimale"]
                 return state
             
-            system_prompt = """You are an expert fuel management data analyst for Total Energies. Your job is to interpret the results from Python code execution on fuel management data and provide a clear, comprehensive summary.
+            system_prompt = """Vous êtes un expert analyste de données pour la gestion de carburant Total Energies. Votre travail est d'interpréter les résultats de l'exécution de code Python sur les données de gestion de carburant et de fournir un résumé clair et complet.
 
-Your response should:
-1. Clearly explain what analysis was performed (fuel consumption, inventory, transactions, etc.)
-2. Highlight the key findings and insights related to fuel management
-3. Present the most important statistics or metrics (fuel quantities, costs, efficiency, etc.)
-4. If a visualization was created, describe what it shows in the context of fuel management
-5. Make the analysis easy to understand for non-technical users
-6. Be concise but comprehensive
-7. Always respond in the same language as the user's question (English or French)
+Votre réponse doit:
+1. Expliquer clairement quelle analyse a été effectuée (consommation de carburant, inventaire, transactions, etc.)
+2. Mettre en évidence les conclusions et insights clés liés à la gestion de carburant
+3. Présenter les statistiques ou métriques les plus importantes (quantités de carburant, coûts, efficacité, etc.)
+4. Si une visualisation a été créée, décrire ce qu'elle montre dans le contexte de la gestion de carburant
+5. Rendre l'analyse facile à comprendre pour les utilisateurs non techniques
+6. Être concise mais complète
+7. Répondre toujours en français
 
-Write in a clear, professional tone. Use fuel management terminology appropriately."""
+Écrivez dans un ton clair et professionnel. Utilisez la terminologie de gestion de carburant de manière appropriée."""
             
-            # Detect language from query
-            query_lower = original_query.lower()
-            is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels', 'analyse', 'montre', 'graphique', 'tendance'])
-            
-            if is_french:
-                user_prompt = f"""DEMANDE ORIGINALE DE L'UTILISATEUR: "{original_query}"
+            user_prompt = f"""DEMANDE ORIGINALE DE L'UTILISATEUR: "{original_query}"
 
 CODE PYTHON QUI A ÉTÉ EXÉCUTÉ:
 ```python
@@ -808,29 +803,6 @@ TÂCHE: Fournir un résumé d'analyse complet qui:
 Écrivez un résumé clair et bien structuré qui répond directement à la demande originale de l'utilisateur: "{original_query}"
 
 Concentrez-vous sur les insights actionnables et les conclusions clés. Répondez en français."""
-            else:
-                user_prompt = f"""ORIGINAL USER REQUEST: "{original_query}"
-
-PYTHON CODE THAT WAS EXECUTED:
-```python
-{code}
-```
-
-EXECUTION OUTPUT/RESULTS:
-{execution_result}
-
-VISUALIZATION CREATED: {'Yes - a chart/graph was generated' if has_visualization else 'No'}
-
-TASK: Provide a comprehensive analysis summary that:
-1. Explains what analysis was performed based on the user's request
-2. Highlights the key findings from the execution output
-3. Presents important statistics, metrics, or patterns discovered
-4. If a visualization was created, describe what it shows and what insights it provides
-5. Makes the results easy to understand
-
-Write a clear, well-structured summary that directly addresses the user's original request: "{original_query}"
-
-Focus on actionable insights and key findings. Respond in the same language as the question."""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -875,7 +847,7 @@ Return as a JSON array of strings."""
             logger.error(f"Error analyzing results: {e}")
             state["error"] = str(e)
             if not state.get("analysis"):
-                state["analysis"] = execution_result if execution_result else "Analysis completed but summary generation failed."
+                state["analysis"] = execution_result if execution_result else "Analyse terminée mais la génération du résumé a échoué."
         
         return state
     

@@ -54,7 +54,7 @@ function ChatPage() {
       const errorMessage = {
         id: Date.now() + 1,
         type: 'error',
-        content: error.message || 'An error occurred while processing your request',
+        content: error.message || 'Une erreur s\'est produite lors du traitement de votre demande',
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])

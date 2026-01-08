@@ -36,7 +36,7 @@ function DocumentUpload() {
       if (!allowedTypes.includes(file.type) && !file.name.match(/\.(txt|pdf|doc|docx|md|csv)$/i)) {
         setUploadStatus({
           type: 'error',
-          message: 'Unsupported file type. Please upload .txt, .pdf, .doc, .docx, .md, or .csv files.'
+          message: 'Type de fichier non supporté. Veuillez télécharger des fichiers .txt, .pdf, .doc, .docx, .md ou .csv.'
         })
         setSelectedFile(null)
         return
@@ -46,7 +46,7 @@ function DocumentUpload() {
       if (file.size > 10 * 1024 * 1024) {
         setUploadStatus({
           type: 'error',
-          message: 'File size exceeds 10MB limit.'
+          message: 'La taille du fichier dépasse la limite de 10MB.'
         })
         setSelectedFile(null)
         return
@@ -61,7 +61,7 @@ function DocumentUpload() {
     if (!selectedFile) {
       setUploadStatus({
         type: 'error',
-        message: 'Please select a file to upload.'
+        message: 'Veuillez sélectionner un fichier à télécharger.'
       })
       return
     }
@@ -73,7 +73,7 @@ function DocumentUpload() {
       const result = await uploadDocument(selectedFile)
       setUploadStatus({
         type: 'success',
-        message: `Successfully uploaded! Ingested ${result.chunks_ingested} chunks.`
+        message: `Téléchargement réussi! ${result.chunks_ingested} segments ingérés.`
       })
       setSelectedFile(null)
       // Reset file input
@@ -82,7 +82,7 @@ function DocumentUpload() {
     } catch (error) {
       setUploadStatus({
         type: 'error',
-        message: error.response?.data?.detail || error.message || 'Failed to upload document.'
+        message: error.response?.data?.detail || error.message || 'Échec du téléchargement du document.'
       })
     } finally {
       setIsUploading(false)
@@ -95,7 +95,7 @@ function DocumentUpload() {
         !sharepointConfig.clientId || !sharepointConfig.clientSecret) {
       setSharepointStatus({
         type: 'error',
-        message: 'Please fill in all required SharePoint connection fields.'
+        message: 'Veuillez remplir tous les champs requis pour la connexion SharePoint.'
       })
       return
     }
@@ -107,7 +107,7 @@ function DocumentUpload() {
       const result = await connectSharePoint(sharepointConfig)
       setSharepointStatus({
         type: 'success',
-        message: `Successfully connected! Retrieved and ingested ${result.documents_retrieved} documents (${result.chunks_ingested} total chunks).`
+        message: `Connexion réussie! ${result.documents_retrieved} documents récupérés et ${result.chunks_ingested} segments ingérés au total.`
       })
       // Clear sensitive fields after successful connection
       setSharepointConfig(prev => ({
@@ -117,7 +117,7 @@ function DocumentUpload() {
     } catch (error) {
       setSharepointStatus({
         type: 'error',
-        message: error.response?.data?.detail || error.message || 'Failed to connect to SharePoint.'
+        message: error.response?.data?.detail || error.message || 'Échec de la connexion à SharePoint.'
       })
     } finally {
       setIsConnecting(false)
@@ -134,8 +134,8 @@ function DocumentUpload() {
   return (
     <div className="document-upload">
       <div className="upload-header">
-        <h2>📄 Document Management</h2>
-        <p>Upload documents or connect to SharePoint to add them to the RAG system</p>
+        <h2>📄 Gestion de documents</h2>
+        <p>Téléchargez des documents ou connectez-vous à SharePoint pour les ajouter au système RAG</p>
       </div>
 
       <div className="upload-tabs">
@@ -143,13 +143,13 @@ function DocumentUpload() {
           className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
           onClick={() => setActiveTab('upload')}
         >
-          📤 Upload Document
+          📤 Télécharger un document
         </button>
         <button
           className={`tab-button ${activeTab === 'sharepoint' ? 'active' : ''}`}
           onClick={() => setActiveTab('sharepoint')}
         >
-          🔗 Connect SharePoint
+          🔗 Connecter SharePoint
         </button>
       </div>
 
@@ -178,9 +178,9 @@ function DocumentUpload() {
                 ) : (
                   <div className="file-placeholder">
                     <span className="upload-icon">📤</span>
-                    <p>Click to select a file</p>
+                    <p>Cliquez pour sélectionner un fichier</p>
                     <p className="file-hint">
-                      Supported: .txt, .pdf, .doc, .docx, .md, .csv (max 10MB)
+                      Formats supportés: .txt, .pdf, .doc, .docx, .md, .csv (max 10MB)
                     </p>
                   </div>
                 )}
@@ -198,7 +198,7 @@ function DocumentUpload() {
               onClick={handleUpload}
               disabled={!selectedFile || isUploading}
             >
-              {isUploading ? 'Uploading...' : 'Upload & Ingest'}
+              {isUploading ? 'Téléchargement...' : 'Télécharger et ingérer'}
             </button>
           </div>
         )}
@@ -207,7 +207,7 @@ function DocumentUpload() {
           <div className="sharepoint-section">
             <div className="form-group">
               <label htmlFor="site-url">
-                SharePoint Site URL <span className="required">*</span>
+                URL du site SharePoint <span className="required">*</span>
               </label>
               <input
                 type="url"
@@ -221,7 +221,7 @@ function DocumentUpload() {
 
             <div className="form-group">
               <label htmlFor="tenant-id">
-                Tenant ID <span className="required">*</span>
+                ID du locataire <span className="required">*</span>
               </label>
               <input
                 type="text"
@@ -235,7 +235,7 @@ function DocumentUpload() {
 
             <div className="form-group">
               <label htmlFor="client-id">
-                Client ID (Application ID) <span className="required">*</span>
+                ID client (ID d'application) <span className="required">*</span>
               </label>
               <input
                 type="text"
@@ -249,50 +249,50 @@ function DocumentUpload() {
 
             <div className="form-group">
               <label htmlFor="client-secret">
-                Client Secret <span className="required">*</span>
+                Secret client <span className="required">*</span>
               </label>
               <input
                 type="password"
                 id="client-secret"
                 value={sharepointConfig.clientSecret}
                 onChange={(e) => handleSharePointChange('clientSecret', e.target.value)}
-                placeholder="Enter your client secret"
+                placeholder="Entrez votre secret client"
                 required
               />
               <small className="form-hint">
-                This will be securely transmitted and not stored in the browser
+                Ceci sera transmis de manière sécurisée et ne sera pas stocké dans le navigateur
               </small>
             </div>
 
             <div className="form-group">
               <label htmlFor="library-name">
-                Document Library Name
+                Nom de la bibliothèque de documents
               </label>
               <input
                 type="text"
                 id="library-name"
                 value={sharepointConfig.libraryName}
                 onChange={(e) => handleSharePointChange('libraryName', e.target.value)}
-                placeholder="Documents (default if empty)"
+                placeholder="Documents (par défaut si vide)"
               />
               <small className="form-hint">
-                Leave empty to use default "Documents" library
+                Laissez vide pour utiliser la bibliothèque "Documents" par défaut
               </small>
             </div>
 
             <div className="form-group">
               <label htmlFor="folder-path">
-                Folder Path (optional)
+                Chemin du dossier (optionnel)
               </label>
               <input
                 type="text"
                 id="folder-path"
                 value={sharepointConfig.folderPath}
                 onChange={(e) => handleSharePointChange('folderPath', e.target.value)}
-                placeholder="Folder1/Subfolder (leave empty for root)"
+                placeholder="Dossier1/Sous-dossier (laissez vide pour la racine)"
               />
               <small className="form-hint">
-                Specific folder path within the library (e.g., "Support/FAQ")
+                Chemin de dossier spécifique dans la bibliothèque (par ex., "Support/FAQ")
               </small>
             </div>
 
@@ -307,16 +307,16 @@ function DocumentUpload() {
               onClick={handleSharePointConnect}
               disabled={isConnecting}
             >
-              {isConnecting ? 'Connecting...' : 'Connect & Retrieve Documents'}
+              {isConnecting ? 'Connexion...' : 'Connecter et récupérer les documents'}
             </button>
 
             <div className="sharepoint-info">
-              <h3>ℹ️ SharePoint Setup Instructions</h3>
+              <h3>ℹ️ Instructions de configuration SharePoint</h3>
               <ol>
-                <li>Register an app in Azure AD (App Registrations)</li>
-                <li>Grant API permissions: <code>Sites.Read.All</code> or <code>Sites.ReadWrite.All</code></li>
-                <li>Create a client secret and copy the values</li>
-                <li>Ensure the app has access to your SharePoint site</li>
+                <li>Enregistrez une application dans Azure AD (Inscriptions d'applications)</li>
+                <li>Accordez les permissions API: <code>Sites.Read.All</code> ou <code>Sites.ReadWrite.All</code></li>
+                <li>Créez un secret client et copiez les valeurs</li>
+                <li>Assurez-vous que l'application a accès à votre site SharePoint</li>
               </ol>
             </div>
           </div>

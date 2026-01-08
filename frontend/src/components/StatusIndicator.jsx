@@ -6,7 +6,7 @@ function StatusIndicator({ isHealthy }) {
     return (
       <div className="status-indicator">
         <span className="status-dot checking"></span>
-        <span>Checking...</span>
+        <span>Vérification...</span>
       </div>
     )
   }
@@ -14,7 +14,7 @@ function StatusIndicator({ isHealthy }) {
   return (
     <div className="status-indicator">
       <span className={`status-dot ${isHealthy ? 'healthy' : 'unhealthy'}`}></span>
-      <span>{isHealthy ? 'Connected' : 'Disconnected'}</span>
+      <span>{isHealthy ? 'Connecté' : 'Déconnecté'}</span>
     </div>
   )
 }

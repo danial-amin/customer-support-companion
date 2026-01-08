@@ -90,32 +90,32 @@ class Orchestrator:
             has_rag = any(keyword in query for keyword in rag_keywords) or not (has_sql or has_analyzer)
             
             # Use LLM for more sophisticated routing
-            system_prompt = """Determine the best agent(s) to handle this query.
-            Options: 'rag' (general knowledge/questions), 'sql' (database queries), 
-            'analyzer' (data analysis), 'hybrid' (needs multiple agents).
-            Return only the agent type."""
+            system_prompt = """Déterminez le(s) meilleur(s) agent(s) pour traiter cette requête.
+            Options: 'rag' (connaissances générales/questions), 'sql' (requêtes base de données), 
+            'analyzer' (analyse de données), 'hybrid' (nécessite plusieurs agents).
+            Retournez uniquement le type d'agent."""
             
-            routing_prompt = f"""Query: "{state['query']}"
+            routing_prompt = f"""Requête: "{state['query']}"
             
-            Determine the best agent to handle this query for Total Energies fuel management system:
+            Déterminez le meilleur agent pour traiter cette requête pour le système de gestion de carburant Total Energies:
             
-            - 'rag': General knowledge questions, fuel management policies, "how to" questions, information about fuel stations, fuel types, fuel cards, or vehicle management
-              Examples: "What fuel types are available?", "How do I use a fuel card?", "Tell me about fuel station locations", 
-                        "What is the fuel pricing policy?", "How do I report a fuel station issue?"
+            - 'rag': Questions de connaissances générales, politiques de gestion de carburant, questions "comment", informations sur les stations-service, types de carburant, cartes carburant, ou gestion de véhicules
+              Exemples: "Quels types de carburant sont disponibles?", "Comment utiliser une carte carburant?", "Parlez-moi des emplacements des stations-service", 
+                        "Quelle est la politique de tarification du carburant?", "Comment signaler un problème de station-service?"
             
-            - 'sql': Simple data retrieval, counting, listing records from fuel management database
-              Examples: "How many fuel stations do we have?", "List all fuel transactions", "Show me vehicles in Paris",
-                        "How many fuel cards are active?", "What is the current fuel inventory at station X?"
+            - 'sql': Récupération simple de données, comptage, listage d'enregistrements de la base de données de gestion de carburant
+              Exemples: "Combien de stations-service avons-nous?", "Listez toutes les transactions de carburant", "Montrez-moi les véhicules à Paris",
+                        "Combien de cartes carburant sont actives?", "Quel est l'inventaire de carburant actuel à la station X?"
             
-            - 'analyzer': Data analysis, statistics, comparisons, trends, visualizations, aggregations for fuel management
-              Examples: "Analyze fuel consumption trends", "Compare fuel costs by month", "Show me a chart of fuel transactions over time",
-                        "What are the top 5 fuel stations by sales?", "Calculate average fuel consumption per vehicle", 
-                        "Show distribution of fuel inventory levels", "Analyze fuel efficiency by vehicle type"
+            - 'analyzer': Analyse de données, statistiques, comparaisons, tendances, visualisations, agrégations pour la gestion de carburant
+              Exemples: "Analysez les tendances de consommation de carburant", "Comparez les coûts de carburant par mois", "Montrez-moi un graphique des transactions de carburant au fil du temps",
+                        "Quelles sont les 5 meilleures stations-service par ventes?", "Calculez la consommation moyenne de carburant par véhicule", 
+                        "Montrez la distribution des niveaux d'inventaire de carburant", "Analysez l'efficacité énergétique par type de véhicule"
             
-            - 'hybrid': Complex queries that need both data retrieval and analysis
-              Examples: "Get fuel transaction data and analyze consumption patterns", "Retrieve vehicle data and analyze fuel efficiency trends"
+            - 'hybrid': Requêtes complexes qui nécessitent à la fois la récupération de données et l'analyse
+              Exemples: "Obtenez les données de transaction de carburant et analysez les modèles de consommation", "Récupérez les données de véhicules et analysez les tendances d'efficacité énergétique"
             
-            Return only: rag, sql, analyzer, or hybrid"""
+            Retournez uniquement: rag, sql, analyzer, ou hybrid"""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -218,14 +218,14 @@ class Orchestrator:
                 result = state.get("rag_result", {})
                 answer = result.get("answer", "")
                 if not answer:
-                    answer = "Je n'ai pas pu trouver de réponse." if is_french else "I couldn't find an answer."
+                    answer = "Je n'ai pas pu trouver de réponse."
                 state["final_answer"] = answer
             
             elif agent_type == "sql":
                 result = state.get("sql_result", {})
                 if result.get("error"):
                     error_msg = result['error']
-                    state["final_answer"] = f"Erreur: {error_msg}" if is_french else f"Error: {error_msg}"
+                    state["final_answer"] = f"Erreur: {error_msg}"
                 elif result.get("answer"):
                     # Use the answer generated by the SQL agent from the actual query results
                     state["final_answer"] = result["answer"]
@@ -233,25 +233,25 @@ class Orchestrator:
                     # Fallback if answer generation failed
                     row_count = result["result"].get('row_count', 0)
                     if row_count == 0:
-                        state["final_answer"] = "La requête a été exécutée avec succès, mais aucune ligne n'a été trouvée." if is_french else "Query executed successfully, but no rows were found."
+                        state["final_answer"] = "La requête a été exécutée avec succès, mais aucune ligne n'a été trouvée."
                     else:
-                        state["final_answer"] = f"Requête exécutée avec succès. {row_count} ligne(s) trouvée(s). Voir le tableau des résultats ci-dessous." if is_french else f"Query executed successfully. Found {row_count} row(s). See results table below."
+                        state["final_answer"] = f"Requête exécutée avec succès. {row_count} ligne(s) trouvée(s). Voir le tableau des résultats ci-dessous."
                 else:
-                    state["final_answer"] = "Aucun résultat trouvé." if is_french else "No results found."
+                    state["final_answer"] = "Aucun résultat trouvé."
             
             elif agent_type == "analyzer":
                 result = state.get("analyzer_result", {})
                 if result.get("error"):
                     error_msg = result['error']
-                    state["final_answer"] = f"Erreur: {error_msg}" if is_french else f"Error: {error_msg}"
+                    state["final_answer"] = f"Erreur: {error_msg}"
                 else:
-                    answer_parts = [result.get("analysis", "Analyse terminée." if is_french else "Analysis completed.")]
+                    answer_parts = [result.get("analysis", "Analyse terminée.")]
                     if result.get("python_code"):
-                        answer_parts.append(f"\n\nCode Python:\n```python\n{result['python_code']}\n```" if is_french else f"\n\nPython Code:\n```python\n{result['python_code']}\n```")
+                        answer_parts.append(f"\n\nCode Python:\n```python\n{result['python_code']}\n```")
                     if result.get("execution_result"):
-                        answer_parts.append(f"\nRésultats:\n{result['execution_result']}" if is_french else f"\nResults:\n{result['execution_result']}")
+                        answer_parts.append(f"\nRésultats:\n{result['execution_result']}")
                     if result.get("visualization"):
-                        answer_parts.append("\n[Visualisation générée]" if is_french else "\n[Visualization generated]")
+                        answer_parts.append("\n[Visualisation générée]")
                     state["final_answer"] = "\n".join(answer_parts)
             
             elif agent_type == "hybrid":
@@ -261,16 +261,14 @@ class Orchestrator:
                 if analyzer_result.get("analysis"):
                     state["final_answer"] = analyzer_result["analysis"]
                 elif sql_result.get("result"):
-                    state["final_answer"] = f"Données récupérées: {sql_result['result']}" if is_french else f"Data retrieved: {sql_result['result']}"
+                    state["final_answer"] = f"Données récupérées: {sql_result['result']}"
                 else:
-                    state["final_answer"] = "Impossible de terminer l'analyse." if is_french else "Could not complete the analysis."
+                    state["final_answer"] = "Impossible de terminer l'analyse."
             
         except Exception as e:
             logger.error(f"Error synthesizing response: {e}")
             state["error"] = str(e)
-            detected_lang = detect_language(state.get("query", ""))
-            is_french = detected_lang == "fr"
-            state["final_answer"] = "Une erreur s'est produite lors du traitement de votre demande." if is_french else "An error occurred while processing your request."
+            state["final_answer"] = "Une erreur s'est produite lors du traitement de votre demande."
         
         return state
     

@@ -148,37 +148,29 @@ class RAGAgent:
                     )
                 else:
                     state["answer"] = (
-                    "I don't have any documents in my knowledge base to answer that question. "
-                    "Please upload relevant documents using the Documents page, or try asking a different question. "
-                    "If you believe this information should be available, the documents may need to be re-uploaded after fixing the Pinecone index dimension."
+                    "Je n'ai aucun document dans ma base de connaissances pour répondre à cette question. "
+                    "Veuillez télécharger des documents pertinents en utilisant la page Documents, ou essayez de poser une question différente. "
+                    "Si vous pensez que ces informations devraient être disponibles, les documents peuvent devoir être retéléchargés après la correction de la dimension de l'index Pinecone."
                 )
                 return state
             
-            system_prompt = """You are a helpful fuel management support assistant for Total Energies. 
-            You help customers and staff with questions about fuel stations, fuel types, fuel cards, vehicles, 
-            fuel transactions, inventory management, and fuel management policies.
-            Use the provided context to answer the user's question accurately.
-            If the context doesn't contain enough information, say so.
-            Be concise and helpful. Always respond in the same language as the user's question."""
+            system_prompt = """Vous êtes un assistant de support utile pour la gestion de carburant Total Energies. 
+            Vous aidez les clients et le personnel avec des questions sur les stations-service, les types de carburant, les cartes carburant, les véhicules, 
+            les transactions de carburant, la gestion des stocks, et les politiques de gestion de carburant.
+            Utilisez le contexte fourni pour répondre à la question de l'utilisateur avec précision.
+            Si le contexte ne contient pas assez d'informations, dites-le.
+            Soyez concis et utile. Répondez toujours en français."""
             
             # Detect language from query
             query_lower = state["query"].lower()
             is_french = any(word in query_lower for word in ['comment', 'quoi', 'où', 'quand', 'pourquoi', 'combien', 'quel', 'quelle', 'quelles', 'quels', 'explique', 'parle'])
             
-            if is_french:
-                user_prompt = f"""Contexte:
+            user_prompt = f"""Contexte:
 {context_text}
 
 Question: {state['query']}
 
 Veuillez fournir une réponse utile basée sur le contexte ci-dessus. Répondez en français."""
-            else:
-                user_prompt = f"""Context:
-{context_text}
-
-Question: {state['query']}
-
-Please provide a helpful answer based on the context above. Respond in the same language as the question."""
             
             messages = [
                 SystemMessage(content=system_prompt),
@@ -191,7 +183,7 @@ Please provide a helpful answer based on the context above. Respond in the same 
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
             state["error"] = str(e)
-            state["answer"] = "I apologize, but I encountered an error while generating the answer."
+            state["answer"] = "Je m'excuse, mais j'ai rencontré une erreur lors de la génération de la réponse."
         
         return state
     
