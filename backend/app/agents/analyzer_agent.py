@@ -9,6 +9,7 @@ from app.agents.sql_agent import sql_agent
 import logging
 import json
 import sys
+import re
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -337,50 +338,61 @@ Rappelez-vous: Imprimez tous les résultats et créez une visualisation si deman
             # CRITICAL: Ensure DataFrame is always created first
             # Check if code uses 'df' but doesn't create it
             try:
-                # Always prepend DataFrame creation as a safety measure
-                # This ensures df is always available regardless of what the LLM generates
-                if 'df = pd.DataFrame(data_rows)' not in code and 'df=pd.DataFrame(data_rows)' not in code:
-                    # Check if code actually uses df
-                    code_lower = code.lower()
-                    # Simple check: does code reference df in a way that suggests usage?
-                    uses_df_indicators = ['df[', 'df.', 'df ', 'df\n', 'df,', 'df)', 'df]']
-                    uses_df = any(indicator in code_lower for indicator in uses_df_indicators)
-                    
-                    if uses_df:
-                        logger.info("Code uses 'df' - prepending DataFrame creation")
-                        code = "df = pd.DataFrame(data_rows)\n\n" + code
-                    else:
-                        # Even if not explicitly used, add it for safety if code looks like it might need it
-                        # (e.g., if it's a visualization request)
-                        if any(keyword in state['query'].lower() for keyword in ['chart', 'graph', 'plot', 'visualize']):
-                            logger.info("Visualization requested - prepending DataFrame creation for safety")
-                            code = "df = pd.DataFrame(data_rows)\n\n" + code
+                # Check if DataFrame creation already exists (with various formats)
+                has_df_creation = (
+                    'df = pd.DataFrame(data_rows)' in code or
+                    'df=pd.DataFrame(data_rows)' in code or
+                    'df = pd.DataFrame(data_rows)' in code.replace(' ', '') or
+                    'df=pd.DataFrame(data_rows)' in code.replace(' ', '')
+                )
+                
+                # Check if code uses 'df' anywhere (more comprehensive check)
+                code_lower = code.lower()
+                # Check for any reference to 'df' that's not part of a string or comment
+                # Look for patterns like: df[, df., df ), df], df\n, df,, df), len(df), etc.
+                uses_df_patterns = [
+                    r'\bdf\[', r'\bdf\.', r'\bdf\s', r'\bdf\n', r'\bdf,', r'\bdf\)', r'\bdf\]',
+                    r'len\(df\)', r'print\(df\)', r'df\.', r'df\[', r'df\s', r'df,', r'df\)'
+                ]
+                uses_df = any(re.search(pattern, code_lower) for pattern in uses_df_patterns)
+                
+                # If code uses df but doesn't create it, ALWAYS prepend DataFrame creation
+                if uses_df and not has_df_creation:
+                    logger.info("Code uses 'df' but doesn't create it - prepending DataFrame creation")
+                    code = "df = pd.DataFrame(data_rows)\n\n" + code
+                    has_df_creation = True
+                elif not has_df_creation and any(keyword in state['query'].lower() for keyword in ['chart', 'graph', 'plot', 'visualize', 'analyse', 'analyze', 'statistique', 'statistic']):
+                    # Safety: if analysis/visualization is requested, always create DataFrame
+                    logger.info("Analysis/visualization requested - prepending DataFrame creation for safety")
+                    code = "df = pd.DataFrame(data_rows)\n\n" + code
+                    has_df_creation = True
                 
                 # Ensure DataFrame creation is at the very beginning (move if needed)
-                lines = code.split('\n')
-                df_creation_idx = None
-                
-                for i, line in enumerate(lines):
-                    line_lower = line.lower().strip()
-                    # Skip comments and empty lines
-                    if not line_lower or line_lower.startswith('#'):
-                        continue
-                    if 'df' in line_lower and ('pd.dataframe' in line_lower or 'pd.DataFrame' in line_lower):
-                        df_creation_idx = i
-                        break
-                
-                # If df creation exists but is not at the start, move it there
-                if df_creation_idx is not None and df_creation_idx > 0:
-                    logger.info(f"Moving DataFrame creation from line {df_creation_idx} to beginning")
-                    df_creation_line = lines.pop(df_creation_idx)
-                    # Find first non-comment, non-empty line
-                    insert_idx = 0
+                if has_df_creation:
+                    lines = code.split('\n')
+                    df_creation_idx = None
+                    
                     for i, line in enumerate(lines):
-                        if line.strip() and not line.strip().startswith('#'):
-                            insert_idx = i
+                        line_lower = line.lower().strip()
+                        # Skip comments and empty lines
+                        if not line_lower or line_lower.startswith('#'):
+                            continue
+                        if 'df' in line_lower and ('pd.dataframe' in line_lower or 'pd.dataframe' in line_lower.replace(' ', '')):
+                            df_creation_idx = i
                             break
-                    lines.insert(insert_idx, df_creation_line)
-                    code = '\n'.join(lines)
+                    
+                    # If df creation exists but is not at the start, move it there
+                    if df_creation_idx is not None and df_creation_idx > 0:
+                        logger.info(f"Moving DataFrame creation from line {df_creation_idx} to beginning")
+                        df_creation_line = lines.pop(df_creation_idx)
+                        # Find first non-comment, non-empty line
+                        insert_idx = 0
+                        for i, line in enumerate(lines):
+                            if line.strip() and not line.strip().startswith('#'):
+                                insert_idx = i
+                                break
+                        lines.insert(insert_idx, df_creation_line)
+                        code = '\n'.join(lines)
                 
             except Exception as validation_error:
                 logger.error(f"Error during code validation: {validation_error}", exc_info=True)
